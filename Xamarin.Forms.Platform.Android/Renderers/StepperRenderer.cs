@@ -1,8 +1,10 @@
+using System;
 using System.ComponentModel;
+using Android.Content;
 using Android.Views;
 using Android.Widget;
-using Java.Lang;
 using AButton = Android.Widget.Button;
+using Object = Java.Lang.Object;
 
 namespace Xamarin.Forms.Platform.Android
 {
@@ -11,6 +13,13 @@ namespace Xamarin.Forms.Platform.Android
 		AButton _downButton;
 		AButton _upButton;
 
+		public StepperRenderer(Context context) : base(context)
+		{
+			AutoPackage = false;
+		}
+
+		[Obsolete("This constructor is obsolete as of version 2.5. Please use StepperRenderer(Context) instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public StepperRenderer()
 		{
 			AutoPackage = false;
@@ -28,6 +37,7 @@ namespace Xamarin.Forms.Platform.Android
 			if (e.OldElement == null)
 			{
 				_downButton = new AButton(Context) { Text = "-", Gravity = GravityFlags.Center, Tag = this };
+				_downButton.SetHeight((int)Context.ToPixels(10.0));
 
 				_downButton.SetOnClickListener(StepperListener.Instance);
 

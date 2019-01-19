@@ -10,7 +10,7 @@ using Xamarin.UITest;
 using Xamarin.UITest.Queries;
 
 namespace Xamarin.Forms.Core.UITests
-{	
+{
 	internal static class GalleryQueries
 	{
 		public const string AutomationIDGallery = "* marked:'AutomationID Gallery'";
@@ -24,6 +24,7 @@ namespace Xamarin.Forms.Core.UITests
 		public const string EntryGallery = "* marked:'Entry Gallery'";
 		public const string FrameGallery = "* marked:'Frame Gallery'";
 		public const string ImageGallery = "* marked:'Image Gallery'";
+		public const string ImageButtonGallery = "* marked:'Image Button Gallery'";
 		public const string LabelGallery = "* marked:'Label Gallery'";
 		public const string ListViewGallery = "* marked:'ListView Gallery'";
 		public const string OpenGLViewGallery = "* marked:'OpenGLView Gallery'";
@@ -48,23 +49,24 @@ namespace Xamarin.Forms.Core.UITests
 		// Legacy galleries
 		public const string CellsGalleryLegacy = "* marked:'Cells Gallery - Legacy'";
 		public const string UnevenListGalleryLegacy = "* marked:'UnevenList Gallery - Legacy'";
+		public const string MapGalleryLegacy = "* marked:'Map Gallery - Legacy'";
 	}
 
 	internal static class Queries
 	{
 		#region Platform queries
 
-		public static Func<AppQuery, AppQuery> NavigationBarBackButton ()
+		public static Func<AppQuery, AppQuery> NavigationBarBackButton()
 		{
 			return PlatformQueries.NavigationBarBackButton;
 		}
 
-		public static Func<AppQuery, AppQuery> PageWithoutNavigationBar ()
+		public static Func<AppQuery, AppQuery> PageWithoutNavigationBar()
 		{
 			return PlatformQueries.PageWithoutNavigationBar;
 		}
 
-		public static Func<AppQuery, AppQuery> Root ()
+		public static Func<AppQuery, AppQuery> Root()
 		{
 			return PlatformQueries.Root;
 		}
@@ -83,10 +85,13 @@ namespace Xamarin.Forms.Core.UITests
 		public static readonly string Entry = PlatformViews.Entry;
 		public static readonly string Frame = PlatformViews.Frame;
 		public static readonly string Image = PlatformViews.Image;
+		public static readonly string ImageButton = PlatformViews.ImageButton;
 		public static readonly string Label = PlatformViews.Label;
 		public static readonly string ListView = PlatformViews.ListView;
+		public static readonly string Map = PlatformViews.Map;
 		public static readonly string OpenGLView = PlatformViews.OpenGLView;
 		public static readonly string Picker = PlatformViews.Picker;
+		public static readonly string Pin = PlatformViews.Pin;
 		public static readonly string ProgressBar = PlatformViews.ProgressBar;
 		public static readonly string SearchBar = PlatformViews.SearchBar;
 		public static readonly string Slider = PlatformViews.Slider;
@@ -99,9 +104,13 @@ namespace Xamarin.Forms.Core.UITests
 
 	internal static class Rects
 	{
-		public static AppRect RootViewRect (this IApp app)
+		public static AppRect RootViewRect(this IApp app)
 		{
-			return app.Query (q => q.Raw ("* index:0"))[0].Rect;
+#if __WINDOWS__
+			return app.Query(WinDriverApp.AppName)[0].Rect;
+#else
+			return app.Query(q => q.Raw("* index:0"))[0].Rect;
+#endif
 		}
 	}
 }

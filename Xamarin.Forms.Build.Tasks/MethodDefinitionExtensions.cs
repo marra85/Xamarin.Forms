@@ -38,5 +38,29 @@ namespace Xamarin.Forms.Build.Tasks
 			}
 			return true;
 		}
+
+		public static TypeReference ResolveGenericReturnType(this MethodDefinition self, TypeReference declaringTypeRef, ModuleDefinition module)
+		{
+			if (self == null)
+				throw new System.ArgumentNullException(nameof(self));
+			if (declaringTypeRef == null)
+				throw new System.ArgumentNullException(nameof(declaringTypeRef));
+			if (!self.ReturnType.IsGenericParameter)
+				return self.ReturnType;
+
+			var t = ((GenericInstanceType)declaringTypeRef).GenericArguments[((GenericParameter)self.ReturnType).Position];
+			return t;
+		}
+
+		public static bool HasCustomAttributes(this MethodDefinition self, TypeReference attribute)
+		{
+			if (!self.HasCustomAttributes)
+				return false;
+			foreach (var arg in self.CustomAttributes) {
+				if (TypeRefComparer.Default.Equals(arg.AttributeType, attribute))
+					return true;
+			}
+			return false;
+		}
 	}
 }

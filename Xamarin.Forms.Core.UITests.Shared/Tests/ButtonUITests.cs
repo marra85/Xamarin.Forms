@@ -59,7 +59,7 @@ namespace Xamarin.Forms.Core.UITests
 			remote.GoTo();
 
 #if __IOS__
-			var borderRadius = remote.GetProperty<float>(Button.BorderRadiusProperty);
+			var borderRadius = remote.GetProperty<float>(Button.CornerRadiusProperty);
 			Assert.AreEqual(20.0f, borderRadius);
 #endif
 		}
@@ -80,6 +80,7 @@ namespace Xamarin.Forms.Core.UITests
 
 		[Test]
 		[UiTest(typeof(Button), "Clicked")]
+		[Category(UITestCategories.UwpIgnore)]
 		public void Clicked()
 		{
 			var remote = new EventViewContainerRemote(App, Test.Button.Clicked, PlatformViewType);
@@ -110,6 +111,7 @@ namespace Xamarin.Forms.Core.UITests
 
 		[Test]
 		[UiTest(typeof(Button), "Font")]
+		[Category(UITestCategories.UwpIgnore)]
 		public void Font()
 		{
 			//TODO iOS
@@ -139,6 +141,7 @@ namespace Xamarin.Forms.Core.UITests
 
 		[Test]
 		[UiTest(typeof(Button), "Text")]
+		[Category(UITestCategories.UwpIgnore)]
 		public void Text()
 		{
 			var remote = new ViewContainerRemote(App, Test.Button.Text, PlatformViewType);

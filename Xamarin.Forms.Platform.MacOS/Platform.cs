@@ -6,7 +6,7 @@ using Xamarin.Forms.Internals;
 
 namespace Xamarin.Forms.Platform.MacOS
 {
-	public class Platform : BindableObject, IPlatform, IDisposable
+	public class Platform : BindableObject, IDisposable
 	{
 		internal static readonly BindableProperty RendererProperty = BindableProperty.CreateAttached("Renderer",
 			typeof(IVisualElementRenderer), typeof(Platform), default(IVisualElementRenderer),
@@ -31,8 +31,11 @@ namespace Xamarin.Forms.Platform.MacOS
 			MessagingCenter.Subscribe(this, Page.AlertSignalName, (Page sender, AlertArguments arguments) =>
 			{
 				var alert = NSAlert.WithMessage(arguments.Title, arguments.Cancel, arguments.Accept, null, arguments.Message);
-				var result = alert.RunModal();
-				arguments.SetResult(result == 1);
+				var result = alert.RunSheetModal(PlatformRenderer.View.Window);
+				if (arguments.Accept == null)
+					arguments.SetResult(result == 1);
+				else
+					arguments.SetResult(result == 0);
 			});
 
 			MessagingCenter.Subscribe(this, Page.ActionSheetSignalName, (Page sender, ActionSheetArguments arguments) =>
@@ -40,11 +43,21 @@ namespace Xamarin.Forms.Platform.MacOS
 				var alert = NSAlert.WithMessage(arguments.Title, arguments.Cancel, arguments.Destruction, null, "");
 				if (arguments.Buttons != null)
 				{
-					alert.AccessoryView = GetExtraButton(arguments);
+					int maxScrollHeight = (int)(0.6 * NSScreen.MainScreen.Frame.Height);
+					NSView extraButtons = GetExtraButton(arguments);
+					if (extraButtons.Frame.Height > maxScrollHeight) {
+						NSScrollView scrollView = new NSScrollView();
+						scrollView.Frame = new RectangleF(0, 0, extraButtons.Frame.Width, maxScrollHeight);
+						scrollView.DocumentView = extraButtons;
+						scrollView.HasVerticalScroller = true;
+						alert.AccessoryView = scrollView;
+					} else {
+						alert.AccessoryView = extraButtons;
+					}
 					alert.Layout();
 				}
 
-				var result = (int)alert.RunSheetModal(NSApplication.SharedApplication.MainWindow);
+				var result = (int)alert.RunSheetModal(PlatformRenderer.View.Window);
 				var titleResult = string.Empty;
 				if (result == 1)
 					titleResult = arguments.Cancel;
@@ -57,7 +70,7 @@ namespace Xamarin.Forms.Platform.MacOS
 			});
 		}
 
-		SizeRequest IPlatform.GetNativeSize(VisualElement view, double widthConstraint, double heightConstraint)
+		public static SizeRequest GetNativeSize(VisualElement view, double widthConstraint, double heightConstraint)
 		{
 			var renderView = GetRenderer(view);
 			if (renderView == null || renderView.NativeView == null)
@@ -95,8 +108,7 @@ namespace Xamarin.Forms.Platform.MacOS
 
 		public static IVisualElementRenderer CreateRenderer(VisualElement element)
 		{
-			var t = element.GetType();
-			var renderer = Internals.Registrar.Registered.GetHandler<IVisualElementRenderer>(t) ?? new DefaultRenderer();
+			var renderer = Internals.Registrar.Registered.GetHandlerForObject<IVisualElementRenderer>(element) ?? new DefaultRenderer();
 			renderer.SetElement(element);
 			return renderer;
 		}
@@ -122,11 +134,15 @@ namespace Xamarin.Forms.Platform.MacOS
 
 		internal static void DisposeModelAndChildrenRenderers(Element view)
 		{
-			IVisualElementRenderer renderer;
 			foreach (VisualElement child in view.Descendants())
-				DisposeModelAndChildrenRenderers(child);
+				DisposeRenderer(child);
 
-			renderer = GetRenderer((VisualElement)view);
+			DisposeRenderer(view);
+		}
+
+		static void DisposeRenderer(Element view)
+		{
+			IVisualElementRenderer renderer = GetRenderer((VisualElement)view);
 			if (renderer?.ViewController?.ParentViewController != null)
 				renderer?.ViewController?.RemoveFromParentViewController();
 
@@ -183,7 +199,6 @@ namespace Xamarin.Forms.Platform.MacOS
 			if (_appeared == false)
 				return;
 
-			Page.Platform = this;
 			AddChild(Page);
 
 			Page.DescendantRemoved += HandleChildRemoved;
@@ -203,7 +218,6 @@ namespace Xamarin.Forms.Platform.MacOS
 			if (_appeared)
 				return;
 
-			Page.Platform = this;
 			AddChild(Page);
 
 			Page.DescendantRemoved += HandleChildRemoved;

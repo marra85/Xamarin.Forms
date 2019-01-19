@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -9,10 +9,11 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Xamarin.Forms.Core.UnitTests</RootNamespace>
     <AssemblyName>Xamarin.Forms.Core.UnitTests</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
     <RestorePackages>true</RestorePackages>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -35,24 +36,10 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>0114;0672;0108;0067;0168;0169;0219;0612;0618;1998;4014</NoWarn>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Turkey|AnyCPU'">
-    <DebugSymbols>true</DebugSymbols>
-    <OutputPath>bin\Turkey\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;TURKEY</DefineConstants>
-    <DebugType>full</DebugType>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <NoWarn>0114;0672;0108;0067;0168;0169;0219;0612;0618;1998;4014</NoWarn>
-  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="nunit.framework, Version=2.6.4.14350, Culture=neutral, PublicKeyToken=96d09a1eb7f44a77, processorArchitecture=MSIL">
-      <HintPath>..\packages\NUnit.2.6.4\lib\nunit.framework.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -60,12 +47,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="NUnit" Version="2.6.4" />
+    <PackageReference Include="NUnitTestAdapter" Version="2.1.1" />
+  </ItemGroup>
+  <ItemGroup>
     <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AcceleratorTypeConverterUnitTests.cs" />
+    <Compile Include="AcceleratorUnitTests.cs" />
     <Compile Include="AnimatableKeyTests.cs" />
     <Compile Include="BaseTestFixture.cs" />
     <Compile Include="AbsoluteLayoutTests.cs" />
+    <Compile Include="BindableLayoutTests.cs" />
     <Compile Include="BindableObjectExtensionTests.cs" />
     <Compile Include="BindableObjectUnitTests.cs" />
     <Compile Include="BindablePropertyUnitTests.cs" />
@@ -80,6 +74,19 @@
     <Compile Include="ColorUnitTests.cs" />
     <Compile Include="CommandSourceTests.cs" />
     <Compile Include="CommandTests.cs" />
+    <Compile Include="DependencyResolutionTests.cs" />
+    <Compile Include="EffectiveFlowDirectionExtensions.cs" />
+    <Compile Include="VisualTests.cs" />
+    <Compile Include="FlowDirectionTests.cs" />
+    <Compile Include="ImageButtonUnitTest.cs" />
+    <Compile Include="ItemsViewTests.cs" />
+    <Compile Include="LayoutChildIntoBoundingRegionTests.cs" />
+    <Compile Include="MenuUnitTests.cs" />
+    <Compile Include="PreviewerReflectionTests.cs" />
+    <Compile Include="RegionTests.cs" />
+    <Compile Include="ShellTests.cs" />
+    <Compile Include="SpanTests.cs" />
+    <Compile Include="TitleViewUnitTests.cs" />
     <Compile Include="TemplatedViewUnitTests.cs" />
     <Compile Include="TemplatedPageUnitTests.cs" />
     <Compile Include="ContentFormUnitTests.cs" />
@@ -115,7 +122,6 @@
     <Compile Include="MockViewModel.cs" />
     <Compile Include="MotionTests.cs" />
     <Compile Include="MultiPageTests.cs" />
-    <Compile Include="NavigationMenuUnitTests.cs" />
     <Compile Include="NavigationModelTests.cs" />
     <Compile Include="NavigationProxyTests.cs" />
     <Compile Include="NavigationUnitTest.cs" />
@@ -149,13 +155,16 @@
     <Compile Include="TapGestureRecognizerTests.cs" />
     <Compile Include="TemplatedItemsListTests.cs" />
     <Compile Include="TextCellTests.cs" />
+    <Compile Include="TextDecorationUnitTests.cs" />
     <Compile Include="ThicknessTests.cs" />
     <Compile Include="TimePickerUnitTest.cs" />
     <Compile Include="ToolbarItemTests.cs" />
     <Compile Include="ToolbarTrackerTests.cs" />
+    <Compile Include="ToStringValueConverterTests.cs" />
     <Compile Include="TypeUnitTests.cs" />
     <Compile Include="ViewCellTests.cs" />
     <Compile Include="ViewUnitTests.cs" />
+    <Compile Include="VisualStateManagerTests.cs" />
     <Compile Include="WeakEventManagerTests.cs" />
     <Compile Include="WebViewUnitTests.cs" />
     <Compile Include="ImageSourceTests.cs" />
@@ -164,7 +173,6 @@
     <Compile Include="ContentViewUnitTest.cs" />
     <Compile Include="MockPlatformServices.cs" />
     <Compile Include="GridTests.cs" />
-    <Compile Include="UnitPlatform.cs" />
     <Compile Include="GridLengthTypeConverterTests.cs" />
     <Compile Include="BoxViewUnitTests.cs" />
     <Compile Include="NotifiedPropertiesTests.cs" />
@@ -183,6 +191,19 @@
     <Compile Include="AppLinkEntryTests.cs" />
     <Compile Include="NativeBindingTests.cs" />
     <Compile Include="TypedBindingUnitTests.cs" />
+    <Compile Include="AnimationTests.cs" />
+    <Compile Include="StyleSheets\MockStylable.cs" />
+    <Compile Include="StyleSheets\SelectorTests.cs" />
+    <Compile Include="StyleSheets\IStylableTest.cs" />
+    <Compile Include="StyleSheets\StyleTests.cs" />
+    <Compile Include="FlexLayoutTests.cs" />
+    <Compile Include="FlexLayoutAlignItemsTests.cs" />
+    <Compile Include="FlexLayoutFlexDirectionTests.cs" />
+    <Compile Include="FlexLayoutMarginTests.cs" />
+    <Compile Include="FlexLayoutAlignContentTests.cs" />
+    <Compile Include="FlexLayoutAlignSelfTests.cs" />
+    <Compile Include="FlexOrderTests.cs" />
+    <Compile Include="FontAttributeConverterUnitTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Xamarin.Forms.Core\Xamarin.Forms.Core.csproj">
@@ -208,11 +229,14 @@
   </Target>
   -->
   <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
     <EmbeddedResource Include="Images\crimson.jpg">
       <LogicalName>Images/crimson.jpg</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
+  <Target Name="_CopyNUnitTestAdapterFiles" AfterTargets="Build">
+    <ItemGroup>
+      <_NUnitTestAdapterFiles Include="$(NuGetPackageRoot)NUnitTestAdapter\%(Version)\**" Condition="@(PackageReference -> '%(Identity)') == 'NUnitTestAdapter'" InProject="False" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_NUnitTestAdapterFiles)" DestinationFolder="$(SolutionDir)packages\NUnitTestAdapter.AnyVersion\%(RecursiveDir)" ContinueOnError="true" Retries="0" />
+  </Target>
 </Project>

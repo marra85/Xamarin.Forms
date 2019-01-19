@@ -10,10 +10,12 @@ namespace Xamarin.Forms.Controls
 	{
 		public ButtonGallery ()
 		{
+			//ShellAppearance.SetNavBarVisible(this, false);
+			Shell.SetSearchHandler(this, new SearchHandler() { SearchBoxVisibility = SearchBoxVisiblity.Collapsable });
 			BackgroundColor = new Color (0.9);
 
 			var normal = new Button { Text = "Normal Button" };
-			normal.Effects.Add (Effect.Resolve ("XamControl.BorderEffect"));
+			normal.Effects.Add (Effect.Resolve ($"{Issues.Effects.ResolutionGroupName}.BorderEffect"));
 
 			var disabled = new Button { Text = "Disabled Button"};
 			var disabledswitch = new Switch ();
@@ -40,8 +42,6 @@ namespace Xamarin.Forms.Controls
 			case Device.Android:
 				fontName = "sans-serif-light";
 				break;
-			case Device.WinPhone:
-			case Device.WinRT:
 			case Device.UWP:
 				fontName = "Comic Sans MS";
 				break;
@@ -61,7 +61,9 @@ namespace Xamarin.Forms.Controls
 				BorderColor = Color.Black,
 				BackgroundColor = Color.Purple,
 				BorderWidth = 5,
+#pragma warning disable 0618
 				BorderRadius = 5
+#pragma warning restore
 			};
 			var timer = new Button { Text = "Timer" };
 			var busy = new Button { Text = "Toggle Busy" };
@@ -96,6 +98,7 @@ namespace Xamarin.Forms.Controls
 			borderButton.Clicked += (sender, args) => borderButton.BackgroundColor = Color.Default;
 
 			Content = new ScrollView {
+				BackgroundColor = Color.Red,
 				Content = new StackLayout {
 					Padding = new Size (20, 20),
 					Children = {

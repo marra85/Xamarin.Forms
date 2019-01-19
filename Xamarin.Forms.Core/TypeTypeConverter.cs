@@ -1,13 +1,16 @@
 using System;
+using System.ComponentModel;
 using System.Globalization;
 using Xamarin.Forms.Xaml;
 
 namespace Xamarin.Forms
 {
 	[Xaml.ProvideCompiled("Xamarin.Forms.Core.XamlC.TypeTypeConverter")]
+	[Xaml.TypeConversion(typeof(Type))]
 	public sealed class TypeTypeConverter : TypeConverter, IExtendedTypeConverter
 	{
 		[Obsolete("IExtendedTypeConverter.ConvertFrom is obsolete as of version 2.2.0. Please use ConvertFromInvariantString (string, IServiceProvider) instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		object IExtendedTypeConverter.ConvertFrom(CultureInfo culture, object value, IServiceProvider serviceProvider)
 		{
 			return ((IExtendedTypeConverter)this).ConvertFromInvariantString((string)value, serviceProvider);

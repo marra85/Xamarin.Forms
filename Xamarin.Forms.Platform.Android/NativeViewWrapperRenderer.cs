@@ -1,9 +1,22 @@
+using System;
+using System.ComponentModel;
+using Android.Content;
 using Xamarin.Forms.Internals;
 
 namespace Xamarin.Forms.Platform.Android
 {
 	public class NativeViewWrapperRenderer : ViewRenderer<NativeViewWrapper, global::Android.Views.View>
 	{
+		public NativeViewWrapperRenderer(Context context) : base(context)
+		{
+		}
+
+		[Obsolete("This constructor is obsolete as of version 2.5. Please use NativeViewWrapperRenderer(Context) instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
+		public NativeViewWrapperRenderer()
+		{
+		}
+
 		public override SizeRequest GetDesiredSize(int widthConstraint, int heightConstraint)
 		{
 			if (Element?.GetDesiredSizeDelegate == null)

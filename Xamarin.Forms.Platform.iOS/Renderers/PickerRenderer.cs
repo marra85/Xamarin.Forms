@@ -1,17 +1,34 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using Foundation;
+using ObjCRuntime;
 using UIKit;
 using Xamarin.Forms.PlatformConfiguration.iOSSpecific;
 using RectangleF = CoreGraphics.CGRect;
 
 namespace Xamarin.Forms.Platform.iOS
 {
+	internal class ReadOnlyField : NoCaretField
+	{
+		readonly HashSet<string> enableActions;
+
+		public ReadOnlyField() {
+			string[] actions = { "copy:", "select:", "selectAll:" };
+			enableActions = new HashSet<string> (actions);
+		}
+
+		public override bool CanPerform (Selector action, NSObject withSender)
+			=> enableActions.Contains(action.Name);
+	}
+
 	public class PickerRenderer : ViewRenderer<Picker, UITextField>
 	{
 		UIPickerView _picker;
 		UIColor _defaultTextColor;
 		bool _disposed;
+		bool _useLegacyColorManagement;
 
 		IElementController ElementController => Element as IElementController;
 
@@ -24,10 +41,12 @@ namespace Xamarin.Forms.Platform.iOS
 			{
 				if (Control == null)
 				{
-					var entry = new NoCaretField { BorderStyle = UITextBorderStyle.RoundedRect };
+					// disabled cut, delete, and toggle actions because they can throw an unhandled native exception
+					var entry = new ReadOnlyField { BorderStyle = UITextBorderStyle.RoundedRect };
 
 					entry.EditingDidBegin += OnStarted;
 					entry.EditingDidEnd += OnEnded;
+					entry.EditingChanged += OnEditing;
 
 					_picker = new UIPickerView();
 
@@ -48,13 +67,19 @@ namespace Xamarin.Forms.Platform.iOS
 					entry.InputView = _picker;
 					entry.InputAccessoryView = toolbar;
 
+					entry.InputView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight;
+					entry.InputAccessoryView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight;
+
 					_defaultTextColor = entry.TextColor;
+					
+					_useLegacyColorManagement = e.NewElement.UseLegacyColorManagement();
 
 					SetNativeControl(entry);
 				}
 
 				_picker.Model = new PickerSource(this);
 
+				UpdateFont();
 				UpdatePicker();
 				UpdateTextColor();
 
@@ -67,16 +92,33 @@ namespace Xamarin.Forms.Platform.iOS
 		protected override void OnElementPropertyChanged(object sender, PropertyChangedEventArgs e)
 		{
 			base.OnElementPropertyChanged(sender, e);
-			if (e.PropertyName == Picker.TitleProperty.PropertyName)
+			if (e.PropertyName == Picker.TitleProperty.PropertyName || e.PropertyName == Picker.TitleColorProperty.PropertyName)
 				UpdatePicker();
-			if (e.PropertyName == Picker.SelectedIndexProperty.PropertyName)
+			else if (e.PropertyName == Picker.SelectedIndexProperty.PropertyName)
 				UpdatePicker();
-			if (e.PropertyName == Picker.TextColorProperty.PropertyName || e.PropertyName == VisualElement.IsEnabledProperty.PropertyName)
+			else if (e.PropertyName == Picker.TextColorProperty.PropertyName || e.PropertyName == VisualElement.IsEnabledProperty.PropertyName)
 				UpdateTextColor();
+			else if (e.PropertyName == Picker.FontAttributesProperty.PropertyName || e.PropertyName == Picker.FontFamilyProperty.PropertyName || e.PropertyName == Picker.FontSizeProperty.PropertyName)
+				UpdateFont();
+		}
+
+		void OnEditing(object sender, EventArgs eventArgs)
+		{
+			// Reset the TextField's Text so it appears as if typing with a keyboard does not work.
+			var selectedIndex = Element.SelectedIndex;
+			var items = Element.Items;
+			Control.Text = selectedIndex == -1 || items == null ? "" : items[selectedIndex];
+			// Also clears the undo stack (undo/redo possible on iPads)
+			Control.UndoManager.RemoveAllActions();
 		}
 
 		void OnEnded(object sender, EventArgs eventArgs)
 		{
+			var s = (PickerSource)_picker.Model;
+			if (s.SelectedIndex != -1 && s.SelectedIndex != _picker.SelectedRowInComponent(0))
+			{
+				_picker.Select(s.SelectedIndex, 0, false);
+			}
 			ElementController.SetValueFromRenderer(VisualElement.IsFocusedPropertyKey, false);
 		}
 
@@ -90,13 +132,31 @@ namespace Xamarin.Forms.Platform.iOS
 			UpdatePicker();
 		}
 
+		void UpdateFont()
+		{
+			Control.Font = Element.ToUIFont();
+		}
+
 		void UpdatePicker()
 		{
 			var selectedIndex = Element.SelectedIndex;
 			var items = Element.Items;
-			Control.Placeholder = Element.Title;
+
+			if (!Element.IsSet(Picker.TitleColorProperty))
+			{
+				Control.AttributedPlaceholder = null;
+				Control.Placeholder = Element.Title;
+			}
+			else
+			{
+				Control.AttributedPlaceholder = new NSAttributedString(Element.Title, new UIStringAttributes
+				{
+					ForegroundColor = Element.TitleColor.ToUIColor()
+				});
+			}
+
 			var oldText = Control.Text;
-			Control.Text = selectedIndex == -1 || items == null ? "" : items[selectedIndex];
+			Control.Text = selectedIndex == -1 || items == null || selectedIndex >= items.Count ? "" : items[selectedIndex];
 			UpdatePickerNativeSize(oldText);
 			_picker.ReloadAllComponents();
 			if (items == null || items.Count == 0)
@@ -134,10 +194,13 @@ namespace Xamarin.Forms.Platform.iOS
 		{
 			var textColor = Element.TextColor;
 
-			if (textColor.IsDefault || !Element.IsEnabled)
+			if (textColor.IsDefault || (!Element.IsEnabled && _useLegacyColorManagement))
 				Control.TextColor = _defaultTextColor;
 			else
 				Control.TextColor = textColor.ToUIColor();
+
+			// HACK This forces the color to update; there's probably a more elegant way to make this happen
+			Control.Text = Control.Text;
 		}
 
 		protected override void Dispose(bool disposing)
@@ -168,6 +231,7 @@ namespace Xamarin.Forms.Platform.iOS
 				{
 					Control.EditingDidBegin -= OnStarted;
 					Control.EditingDidEnd -= OnEnded;
+					Control.EditingChanged -= OnEditing;
 				}
 
 				if(Element != null)

@@ -1,12 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Xml;
+using Microsoft.Build.Framework;
 
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 
 using Xamarin.Forms.Xaml;
+
+using static Microsoft.Build.Framework.MessageImportance;
+using static Mono.Cecil.Cil.OpCodes;
 
 namespace Xamarin.Forms.Build.Tasks
 {
@@ -17,7 +23,13 @@ namespace Xamarin.Forms.Build.Tasks
 		public bool OptimizeIL { get; set; }
 
 		[Obsolete("OutputGeneratedILAsCode is obsolete as of version 2.3.4. This option is no longer available.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public bool OutputGeneratedILAsCode { get; set; }
+
+		public bool CompileByDefault { get; set; }
+		public bool ForceCompile { get; set; }
+
+		public IAssemblyResolver DefaultAssemblyResolver { get; set; }
 
 		internal string Type { get; set; }
 		internal MethodDefinition InitCompForType { get; private set; }
@@ -26,44 +38,35 @@ namespace Xamarin.Forms.Build.Tasks
 		public override bool Execute(out IList<Exception> thrownExceptions)
 		{
 			thrownExceptions = null;
-			Logger = Logger ?? new Logger(null, Verbosity);
-			Logger.LogLine(1, "Compiling Xaml");
-			Logger.LogLine(1, "\nAssembly: {0}", Assembly);
-			if (!string.IsNullOrEmpty(DependencyPaths))
-				Logger.LogLine(1, "DependencyPaths: \t{0}", DependencyPaths);
-			if (!string.IsNullOrEmpty(ReferencePath))
-				Logger.LogLine(1, "ReferencePath: \t{0}", ReferencePath.Replace("//", "/"));
-			Logger.LogLine(3, "DebugSymbols:\"{0}\"", DebugSymbols);
-			Logger.LogLine(3, "DebugType:\"{0}\"", DebugType);
-			var skipassembly = true; //change this to false to enable XamlC by default
+			LoggingHelper.LogMessage(Normal, $"{new string(' ', 0)}Compiling Xaml, assembly: {Assembly}");
+			var skipassembly = !CompileByDefault;
 			bool success = true;
 
-			if (!File.Exists(Assembly))
-			{
-				Logger.LogLine(1, "Assembly file not found. Skipping XamlC.");
+			if (!File.Exists(Assembly)) {
+				LoggingHelper.LogMessage(Normal, $"{new string(' ', 2)}Assembly file not found. Skipping XamlC.");
 				return true;
 			}
 
-			var resolver = new XamlCAssemblyResolver();
-			if (!string.IsNullOrEmpty(DependencyPaths))
-			{
-				foreach (var dep in DependencyPaths.Split(';'))
-				{
-					Logger.LogLine(3, "Adding searchpath {0}", dep);
-					resolver.AddSearchDirectory(dep);
+			var resolver = DefaultAssemblyResolver ?? new XamlCAssemblyResolver();
+			if (resolver is XamlCAssemblyResolver xamlCResolver) {
+				if (!string.IsNullOrEmpty(DependencyPaths)) {
+					foreach (var dep in DependencyPaths.Split(';').Distinct()) {
+						LoggingHelper.LogMessage(Low, $"{new string(' ', 2)}Adding searchpath {dep}");
+						xamlCResolver.AddSearchDirectory(dep);
+					}
 				}
-			}
 
-			if (!string.IsNullOrEmpty(ReferencePath))
-			{
-				var paths = ReferencePath.Replace("//", "/").Split(';');
-				foreach (var p in paths)
-				{
-					var searchpath = Path.GetDirectoryName(p);
-					Logger.LogLine(3, "Adding searchpath {0}", searchpath);
-					resolver.AddSearchDirectory(searchpath);
+				if (!string.IsNullOrEmpty(ReferencePath)) {
+					var paths = ReferencePath.Replace("//", "/").Split(';').Distinct();
+					foreach (var p in paths) {
+						var searchpath = Path.GetDirectoryName(p);
+						LoggingHelper.LogMessage(Low, $"{new string(' ', 2)}Adding searchpath {searchpath}");
+						xamlCResolver.AddSearchDirectory(searchpath);
+					}
 				}
 			}
+			else
+			LoggingHelper.LogMessage(Low, $"{new string(' ', 2)}Ignoring dependency and reference paths due to an unsupported resolver");
 
 			var debug = DebugSymbols || (!string.IsNullOrEmpty(DebugType) && DebugType.ToLowerInvariant() != "none");
 
@@ -99,18 +102,18 @@ namespace Xamarin.Forms.Build.Tasks
 							skipmodule = false;
 					}
 
-					Logger.LogLine(2, " Module: {0}", module.Name);
+					LoggingHelper.LogMessage(Low, $"{new string(' ', 2)}Module: {module.Name}");
 					var resourcesToPrune = new List<EmbeddedResource>();
 					foreach (var resource in module.Resources.OfType<EmbeddedResource>()) {
-						Logger.LogString(2, "  Resource: {0}... ", resource.Name);
+						LoggingHelper.LogMessage(Low, $"{new string(' ', 4)}Resource: {resource.Name}");
 						string classname;
-						if (!resource.IsXaml(out classname)) {
-							Logger.LogLine(2, "skipped.");
+						if (!resource.IsXaml(module, out classname)) {
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}skipped.");
 							continue;
 						}
 						TypeDefinition typeDef = module.GetType(classname);
 						if (typeDef == null) {
-							Logger.LogLine(2, "no type found... skipped.");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}no type found... skipped.");
 							continue;
 						}
 						var skiptype = skipmodule;
@@ -128,17 +131,16 @@ namespace Xamarin.Forms.Build.Tasks
 						if (Type != null)
 							skiptype = !(Type == classname);
 
-						if (skiptype) {
-							Logger.LogLine(2, "Has XamlCompilationAttribute set to Skip and not Compile... skipped");
+						if (skiptype && !ForceCompile) {
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}has XamlCompilationAttribute set to Skip and not Compile... skipped.");
 							continue;
 						}
 
 						var initComp = typeDef.Methods.FirstOrDefault(md => md.Name == "InitializeComponent");
 						if (initComp == null) {
-							Logger.LogLine(2, "no InitializeComponent found... skipped.");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}no InitializeComponent found... skipped.");
 							continue;
 						}
-						Logger.LogLine(2, "");
 
 						CustomAttribute xamlFilePathAttr;
 						var xamlFilePath = typeDef.HasCustomAttributes && (xamlFilePathAttr = typeDef.CustomAttributes.FirstOrDefault(ca => ca.AttributeType.FullName == "Xamarin.Forms.Xaml.XamlFilePathAttribute")) != null ?
@@ -147,13 +149,13 @@ namespace Xamarin.Forms.Build.Tasks
 
 						var initCompRuntime = typeDef.Methods.FirstOrDefault(md => md.Name == "__InitComponentRuntime");
 						if (initCompRuntime != null)
-							Logger.LogLine(2, "   __InitComponentRuntime already exists... not creating");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}__InitComponentRuntime already exists... not creating");
 						else {
-							Logger.LogString(2, "   Creating empty {0}.__InitComponentRuntime ...", typeDef.Name);
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}Creating empty {typeDef.Name}.__InitComponentRuntime");
 							initCompRuntime = new MethodDefinition("__InitComponentRuntime", initComp.Attributes, initComp.ReturnType);
 							initCompRuntime.Body.InitLocals = true;
-							Logger.LogLine(2, "done.");
-							Logger.LogString(2, "   Copying body of InitializeComponent to __InitComponentRuntime ...", typeDef.Name);
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 8)}done.");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}Copying body of InitializeComponent to __InitComponentRuntime");
 							initCompRuntime.Body = new MethodBody(initCompRuntime);
 							var iCRIl = initCompRuntime.Body.GetILProcessor();
 							foreach (var instr in initComp.Body.Instructions)
@@ -162,145 +164,149 @@ namespace Xamarin.Forms.Build.Tasks
 							initComp.Body.GetILProcessor().Emit(OpCodes.Ret);
 							initComp.Body.InitLocals = true;
 							typeDef.Methods.Add(initCompRuntime);
-							Logger.LogLine(2, "done.");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 8)}done.");
 						}
 
-						Logger.LogString(2, "   Parsing Xaml... ");
+						LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}Parsing Xaml");
 						var rootnode = ParseXaml(resource.GetResourceStream(), typeDef);
 						if (rootnode == null) {
-							Logger.LogLine(2, "failed.");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 8)}failed.");
 							continue;
 						}
-						Logger.LogLine(2, "done.");
+						LoggingHelper.LogMessage(Low, $"{new string(' ', 8)}done.");
 
 						hasCompiledXamlResources = true;
 
-						Logger.LogString(2, "   Replacing {0}.InitializeComponent ()... ", typeDef.Name);
+						LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}Replacing {0}.InitializeComponent ()");
 						Exception e;
-						if (!TryCoreCompile(initComp, initCompRuntime, rootnode, resource.Name, out e)) {
+						if (!TryCoreCompile(initComp, initCompRuntime, rootnode, out e)) {
 							success = false;
-							Logger.LogLine(2, "failed.");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 8)}failed.");
 							(thrownExceptions = thrownExceptions ?? new List<Exception>()).Add(e);
-							Logger.LogException(null, null, null, xamlFilePath, e);
-							Logger.LogLine(4, e.StackTrace);
+							if (e is XamlParseException xpe)
+								LoggingHelper.LogError(null, null, null, xamlFilePath, xpe.XmlInfo.LineNumber, xpe.XmlInfo.LinePosition, 0, 0, xpe.Message, xpe.HelpLink, xpe.Source);
+							else if (e is XmlException xe)
+								LoggingHelper.LogError(null, null, null, xamlFilePath, xe.LineNumber, xe.LinePosition, 0, 0, xe.Message, xe.HelpLink, xe.Source);
+							else
+								LoggingHelper.LogError(null, null, null, xamlFilePath, 0, 0, 0, 0, e.Message, e.HelpLink, e.Source);
+							LoggingHelper.LogMessage(Low, e.StackTrace);
 							continue;
 						}
 						if (Type != null)
 						    InitCompForType = initComp;
 
-						Logger.LogLine(2, "done.");
+						LoggingHelper.LogMessage(Low, $"{new string(' ', 8)}done.");
 
 						if (OptimizeIL) {
-							Logger.LogString(2, "   Optimizing IL... ");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}Optimizing IL");
 							initComp.Body.Optimize();
-							Logger.LogLine(2, "done");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 8)}done.");
 						}
-
-						Logger.LogLine(2, "");
 
 #pragma warning disable 0618
 						if (OutputGeneratedILAsCode)
-							Logger.LogLine(2, "   Decompiling option has been removed. Use a 3rd party decompiler to admire the beauty of the IL generated");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}Decompiling option has been removed. Use a 3rd party decompiler to admire the beauty of the IL generated");
 #pragma warning restore 0618
 						resourcesToPrune.Add(resource);
 					}
+					if (hasCompiledXamlResources) {
+						LoggingHelper.LogMessage(Low, $"{new string(' ', 4)}Changing the module MVID");
+						module.Mvid = Guid.NewGuid();
+						LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}done.");
+					}
 					if (!KeepXamlResources) {
 						if (resourcesToPrune.Any())
-							Logger.LogLine(2, "  Removing compiled xaml resources");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 4)}Removing compiled xaml resources");
 						foreach (var resource in resourcesToPrune) {
-							Logger.LogString(2, "   Removing {0}... ", resource.Name);
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 6)}Removing {resource.Name}");
 							module.Resources.Remove(resource);
-							Logger.LogLine(2, "done");
+							LoggingHelper.LogMessage(Low, $"{new string(' ', 8)}done.");
 						}
 					}
-
-					Logger.LogLine(2, "");
 				}
 
 				if (!hasCompiledXamlResources) {
-					Logger.LogLine(1, "No compiled resources. Skipping writing assembly.");
+					LoggingHelper.LogMessage(Low, $"{new string(' ', 0)}No compiled resources. Skipping writing assembly.");
 					return success;
 				}
 
 				if (ReadOnly)
 					return success;
 				
-				Logger.LogString(1, "Writing the assembly... ");
+				LoggingHelper.LogMessage(Low, $"{new string(' ', 0)}Writing the assembly");
 				try {
 					assemblyDefinition.Write(new WriterParameters {
 						WriteSymbols = debug,
 					});
-					Logger.LogLine(1, "done.");
+					LoggingHelper.LogMessage(Low, $"{new string(' ', 2)}done.");
 				} catch (Exception e) {
-					Logger.LogLine(1, "failed.");
-					Logger.LogException(null, null, null, null, e);
+					LoggingHelper.LogMessage(Low, $"{new string(' ', 2)}failed.");
+					LoggingHelper.LogErrorFromException(e);
 					(thrownExceptions = thrownExceptions ?? new List<Exception>()).Add(e);
-					Logger.LogLine(4, e.StackTrace);
+					LoggingHelper.LogMessage(Low, e.StackTrace);
 					success = false;
 				}
 			}
 			return success;
 		}
 
-		bool TryCoreCompile(MethodDefinition initComp, MethodDefinition initCompRuntime, ILRootNode rootnode, string resourceId, out Exception exception)
+		bool TryCoreCompile(MethodDefinition initComp, MethodDefinition initCompRuntime, ILRootNode rootnode, out Exception exception)
 		{
 			try {
 				var body = new MethodBody(initComp);
 				var module = body.Method.Module;
 				body.InitLocals = true;
 				var il = body.GetILProcessor();
-				il.Emit(OpCodes.Nop);
+				var resourcePath = GetPathForType(module, initComp.DeclaringType);
+
+				il.Emit(Nop);
 
 				if (initCompRuntime != null) {
 					// Generating branching code for the Previewer
 
 					//First using the ResourceLoader
-					var nop = Instruction.Create(OpCodes.Nop);
-					var getResourceProvider = module.ImportReference(module.ImportReference(typeof(Internals.ResourceLoader))
-							 .Resolve()
-							 .Properties.FirstOrDefault(pd => pd.Name == "ResourceProvider")
-							 .GetMethod);
-					il.Emit(OpCodes.Call, getResourceProvider);
-					il.Emit(OpCodes.Brfalse, nop);
-					il.Emit(OpCodes.Call, getResourceProvider);
-					il.Emit(OpCodes.Ldstr, resourceId);
-					var func = module.ImportReference(module.ImportReference(typeof(Func<string, string>))
-							 .Resolve()
-							 .Methods.FirstOrDefault(md => md.Name == "Invoke"));
-					func = func.ResolveGenericParameters(module.ImportReference(typeof(Func<string, string>)), module);
-					il.Emit(OpCodes.Callvirt, func);
-					il.Emit(OpCodes.Brfalse, nop);
-					il.Emit(OpCodes.Ldarg_0);
-					il.Emit(OpCodes.Call, initCompRuntime);
-					il.Emit(OpCodes.Ret);
+					var nop = Instruction.Create(Nop);
+
+					il.Emit(Newobj, module.ImportCtorReference(("Xamarin.Forms.Core", "Xamarin.Forms.Internals", "ResourceLoader/ResourceLoadingQuery"), 0));
+					il.Emit(Dup); //dup the RLQ
+
+					//AssemblyName
+					il.Emit(Ldtoken, module.ImportReference(initComp.DeclaringType));
+					il.Emit(Call, module.ImportMethodReference(("mscorlib", "System", "Type"), methodName: "GetTypeFromHandle", parameterTypes: new[] { ("mscorlib", "System", "RuntimeTypeHandle") }, isStatic: true));
+					il.Emit(Call, module.ImportMethodReference(("mscorlib", "System.Reflection", "IntrospectionExtensions"), methodName: "GetTypeInfo", parameterTypes: new[] { ("mscorlib", "System", "Type") }, isStatic: true));
+					il.Emit(Callvirt, module.ImportPropertyGetterReference(("mscorlib", "System.Reflection", "TypeInfo"), propertyName: "Assembly", flatten: true));
+					il.Emit(Callvirt, module.ImportMethodReference(("mscorlib", "System.Reflection", "Assembly"), methodName: "GetName", parameterTypes: null)); //assemblyName
+
+					il.Emit(Callvirt, module.ImportPropertySetterReference(("Xamarin.Forms.Core", "Xamarin.Forms.Internals", "ResourceLoader/ResourceLoadingQuery"), "AssemblyName"));
+					il.Emit(Dup); //dup the RLQ
+
+					il.Emit(Ldstr, resourcePath);   //resourcePath
+					il.Emit(Callvirt, module.ImportPropertySetterReference(("Xamarin.Forms.Core", "Xamarin.Forms.Internals", "ResourceLoader/ResourceLoadingQuery"), "ResourcePath"));
+					
+					il.Emit(Call, module.ImportMethodReference(("Xamarin.Forms.Core", "Xamarin.Forms.Internals", "ResourceLoader"), "CanProvideContentFor", 1, isStatic: true));
+					il.Emit(Brfalse, nop);
+					il.Emit(Ldarg_0);
+					il.Emit(Call, initCompRuntime);
+					il.Emit(Ret);
 					il.Append(nop);
 
 					//Or using the deprecated XamlLoader
-					nop = Instruction.Create(OpCodes.Nop);
-#pragma warning disable 0618
-					var getXamlFileProvider = module.ImportReference(module.ImportReference(typeof(Xaml.Internals.XamlLoader))
-							.Resolve()
-							.Properties.FirstOrDefault(pd => pd.Name == "XamlFileProvider")
-							.GetMethod);
-#pragma warning restore 0618
+					nop = Instruction.Create(Nop);
 
-					il.Emit(OpCodes.Call, getXamlFileProvider);
-					il.Emit(OpCodes.Brfalse, nop);
-					il.Emit(OpCodes.Call, getXamlFileProvider);
-					il.Emit(OpCodes.Ldarg_0);
-					var getType = module.ImportReference(module.ImportReference(typeof(object))
-									  .Resolve()
-									  .Methods.FirstOrDefault(md => md.Name == "GetType"));
-					il.Emit(OpCodes.Call, getType);
-					func = module.ImportReference(module.ImportReference(typeof(Func<Type, string>))
-							 .Resolve()
-							 .Methods.FirstOrDefault(md => md.Name == "Invoke"));
-					func = func.ResolveGenericParameters(module.ImportReference(typeof(Func<Type, string>)), module);
-					il.Emit(OpCodes.Callvirt, func);
-					il.Emit(OpCodes.Brfalse, nop);
-					il.Emit(OpCodes.Ldarg_0);
-					il.Emit(OpCodes.Call, initCompRuntime);
-					il.Emit(OpCodes.Ret);
+					var getXamlFileProvider = module.ImportPropertyGetterReference(("Xamarin.Forms.Xaml", "Xamarin.Forms.Xaml.Internals", "XamlLoader"), propertyName: "XamlFileProvider", isStatic: true);
+					il.Emit(Call, getXamlFileProvider);
+					il.Emit(Brfalse, nop);
+					il.Emit(Call, getXamlFileProvider);
+					il.Emit(Ldarg_0);
+					il.Emit(Call, module.ImportMethodReference(("mscorlib", "System", "Object"), methodName: "GetType", parameterTypes: null));
+					il.Emit(Callvirt, module.ImportMethodReference(("mscorlib", "System", "Func`2"),
+																   methodName: "Invoke",
+																   paramCount: 1,
+																   classArguments: new[] { ("mscorlib", "System", "Type"), ("mscorlib", "System", "String")}));
+					il.Emit(Brfalse, nop);
+					il.Emit(Ldarg_0);
+					il.Emit(Call, initCompRuntime);
+					il.Emit(Ret);
 					il.Append(nop);
 				}
 
@@ -315,7 +321,7 @@ namespace Xamarin.Forms.Build.Tasks
 				rootnode.Accept(new SetResourcesVisitor(visitorContext), null);
 				rootnode.Accept(new SetPropertiesVisitor(visitorContext, true), null);
 
-				il.Emit(OpCodes.Ret);
+				il.Emit(Ret);
 				initComp.Body = body;
 				exception = null;
 				return true;
@@ -323,6 +329,32 @@ namespace Xamarin.Forms.Build.Tasks
 				exception = e;
 				return false;
 			}
+		}
+
+		internal static string GetPathForType(ModuleDefinition module, TypeReference type)
+		{
+			foreach (var ca in type.Module.GetCustomAttributes())
+			{
+				if (!TypeRefComparer.Default.Equals(ca.AttributeType, module.ImportReference(("Xamarin.Forms.Core", "Xamarin.Forms.Xaml", "XamlResourceIdAttribute"))))
+					continue;
+				if (!TypeRefComparer.Default.Equals(ca.ConstructorArguments[2].Value as TypeReference, type))
+					continue;
+				return ca.ConstructorArguments[1].Value as string;
+			}
+			return null;
+		}
+
+		internal static string GetResourceIdForPath(ModuleDefinition module, string path)
+		{
+			foreach (var ca in module.GetCustomAttributes())
+			{
+				if (!TypeRefComparer.Default.Equals(ca.AttributeType, module.ImportReference(("Xamarin.Forms.Core", "Xamarin.Forms.Xaml", "XamlResourceIdAttribute"))))
+					continue;
+				if (ca.ConstructorArguments[1].Value as string != path)
+					continue;
+				return ca.ConstructorArguments[0].Value as string;
+			}
+			return null;
 		}
 	}
 }

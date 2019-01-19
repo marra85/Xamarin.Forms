@@ -2,16 +2,38 @@
 using System.ComponentModel;
 using AppKit;
 using Foundation;
-using SizeF = CoreGraphics.CGSize;
 
 namespace Xamarin.Forms.Platform.MacOS
 {
 	public class ButtonRenderer : ViewRenderer<Button, NSButton>
 	{
+		class FormsNSButton : NSButton
+		{
+			public event Action Pressed;
+
+			public event Action Released;
+
+			public override void MouseDown(NSEvent theEvent)
+			{
+				Pressed?.Invoke();
+
+				base.MouseDown(theEvent);
+
+				Released?.Invoke();
+			}
+		}
+
 		protected override void Dispose(bool disposing)
 		{
 			if (Control != null)
 				Control.Activated -= OnButtonActivated;
+
+			var formsButton = Control as FormsNSButton;
+			if (formsButton != null)
+			{
+				formsButton.Pressed -= HandleButtonPressed;
+				formsButton.Released -= HandleButtonReleased;
+			}
 
 			base.Dispose(disposing);
 		}
@@ -24,8 +46,10 @@ namespace Xamarin.Forms.Platform.MacOS
 			{
 				if (Control == null)
 				{
-					var btn = new NSButton();
+					var btn = new FormsNSButton();
 					btn.SetButtonType(NSButtonType.MomentaryPushIn);
+					btn.Pressed += HandleButtonPressed;
+					btn.Released += HandleButtonReleased;
 					SetNativeControl(btn);
 
 					Control.Activated += OnButtonActivated;
@@ -47,7 +71,7 @@ namespace Xamarin.Forms.Platform.MacOS
 			else if (e.PropertyName == Button.FontProperty.PropertyName)
 				UpdateFont();
 			else if (e.PropertyName == Button.BorderWidthProperty.PropertyName ||
-					e.PropertyName == Button.BorderRadiusProperty.PropertyName ||
+					e.PropertyName == Button.CornerRadiusProperty.PropertyName ||
 					e.PropertyName == Button.BorderColorProperty.PropertyName)
 				UpdateBorder();
 			else if (e.PropertyName == VisualElement.BackgroundColorProperty.PropertyName)
@@ -78,7 +102,7 @@ namespace Xamarin.Forms.Platform.MacOS
 				uiButton.Layer.BorderColor = button.BorderColor.ToCGColor();
 
 			uiButton.Layer.BorderWidth = (float)button.BorderWidth;
-			uiButton.Layer.CornerRadius = button.BorderRadius;
+			uiButton.Layer.CornerRadius = button.CornerRadius;
 
 			UpdateBackgroundVisibility();
 		}
@@ -92,7 +116,7 @@ namespace Xamarin.Forms.Platform.MacOS
 		{
 			IImageSourceHandler handler;
 			FileImageSource source = Element.Image;
-			if (source != null && (handler = Internals.Registrar.Registered.GetHandler<IImageSourceHandler>(source.GetType())) != null)
+			if (source != null && (handler = Internals.Registrar.Registered.GetHandlerForObject<IImageSourceHandler>(source)) != null)
 			{
 				NSImage uiimage;
 				try
@@ -123,9 +147,20 @@ namespace Xamarin.Forms.Platform.MacOS
 			}
 			else
 			{
-				var textWithColor = new NSAttributedString(Element.Text ?? "", foregroundColor: color.ToNSColor( ), paragraphStyle: new NSMutableParagraphStyle( ) { Alignment = NSTextAlignment.Center });
+				var textWithColor = new NSAttributedString(Element.Text ?? "", font: Element.Font.ToNSFont(), foregroundColor: color.ToNSColor(), paragraphStyle: new NSMutableParagraphStyle() { Alignment = NSTextAlignment.Center });
 				Control.AttributedTitle = textWithColor;
 			}
 		}
+
+		void HandleButtonPressed()
+		{
+			Element?.SendPressed();
+		}
+
+		void HandleButtonReleased()
+		{
+			Element?.SendReleased();
+		}
+
 	}
 }

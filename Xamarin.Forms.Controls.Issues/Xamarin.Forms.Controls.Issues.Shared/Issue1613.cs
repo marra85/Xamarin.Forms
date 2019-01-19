@@ -8,7 +8,7 @@ using Xamarin.Forms.CustomAttributes;
 using Xamarin.Forms.Internals;
 using Xamarin.Forms.Maps;
 
-namespace Xamarin.Forms.Controls.TestCasesPages
+namespace Xamarin.Forms.Controls.Issues
 {
 	[Preserve (AllMembers=true)]
 	[Issue (IssueTracker.Github, 1613, "Map.GetSizeRequest always returns map's current size", PlatformAffected.Android | PlatformAffected.iOS)]
@@ -22,7 +22,7 @@ namespace Xamarin.Forms.Controls.TestCasesPages
 		async void Build ()
 		{
 			var image = new Image {
-				Source = "http://www.califliving.com/title24-energy/images/sanfrancisco.jpg",
+				Source = "https://raw.githubusercontent.com/xamarin/Xamarin.Forms/master/banner.png",
 				Aspect = Aspect.AspectFill,
 				Opacity = 0.5,
 			};

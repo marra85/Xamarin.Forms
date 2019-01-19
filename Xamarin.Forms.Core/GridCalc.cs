@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 
 namespace Xamarin.Forms
@@ -50,6 +51,7 @@ namespace Xamarin.Forms
 		}
 
 		[Obsolete("OnSizeRequest is obsolete as of version 2.2.0. Please use OnMeasure instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		protected override SizeRequest OnSizeRequest(double widthConstraint, double heightConstraint)
 		{
 			if (!InternalChildren.Any())
@@ -468,7 +470,7 @@ namespace Xamarin.Forms
 				ColumnDefinition col = _columns[index];
 				if (!col.Width.IsStar)
 					continue;
-				starColWidth = Math.Max(starColWidth, col.ActualWidth / col.Width.Value);
+				starColWidth = col.Width.Value != 0 ? Math.Max(starColWidth, col.ActualWidth / col.Width.Value) : 0;
 			}
 
 			return starColWidth;
@@ -567,7 +569,7 @@ namespace Xamarin.Forms
 				RowDefinition row = _rows[index];
 				if (!row.Height.IsStar)
 					continue;
-				starRowHeight = Math.Max(starRowHeight, row.ActualHeight / row.Height.Value);
+				starRowHeight = row.Height.Value != 0 ? Math.Max(starRowHeight, row.ActualHeight / row.Height.Value) : 0;
 			}
 
 			return starRowHeight;

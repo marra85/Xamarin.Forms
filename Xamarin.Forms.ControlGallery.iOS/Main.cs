@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using UIKit;
-using Xamarin.Forms.Controls;
+﻿using UIKit;
 
 namespace Xamarin.Forms.ControlGallery.iOS
 {
@@ -8,9 +6,7 @@ namespace Xamarin.Forms.ControlGallery.iOS
 	{
 		static void Main(string[] args)
 		{
-			if (!Debugger.IsAttached)
-				Insights.Initialize(App.InsightsApiKey);
-			UIApplication.Main(args, null, "AppDelegate");
+			UIApplication.Main(args, typeof(CustomApplication), typeof(AppDelegate));
 		}
 	}
 }

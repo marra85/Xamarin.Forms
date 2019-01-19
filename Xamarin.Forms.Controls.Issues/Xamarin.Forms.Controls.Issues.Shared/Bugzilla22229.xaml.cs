@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Xamarin.Forms.CustomAttributes;
 using Xamarin.Forms.Internals;
 
-namespace Xamarin.Forms.Controls
+namespace Xamarin.Forms.Controls.Issues
 {
 #if APP
 	[Preserve (AllMembers = true)]
@@ -26,9 +26,7 @@ namespace Xamarin.Forms.Controls
 			case Device.Android:
 				_prefix = "";
 				break;
-			case Device.WinRT:
 			case Device.UWP:
-			case Device.WinPhone:
 				_prefix = "Assets/";
 				break;
 			}

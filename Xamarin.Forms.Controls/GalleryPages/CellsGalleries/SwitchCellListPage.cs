@@ -8,6 +8,7 @@ namespace Xamarin.Forms.Controls
 	{
 		public string Label { get; set; }
 		public bool SwitchOn { get; set; }
+		public Color OnColor { get; set; }
 	}
 
 	public class SwitchCellListPage : ContentPage
@@ -23,15 +24,18 @@ namespace Xamarin.Forms.Controls
 				Bindings = {
 					{SwitchCell.TextProperty, new Binding ("Label")},
 					{SwitchCell.OnProperty, new Binding ("SwitchOn")},
+					{SwitchCell.OnColorProperty, new Binding ("OnColor")},
 				}
 			};
 
 			var label = new Label { Text = "I have not been selected" };
 
 			var listView = new ListView {
+				AutomationId = CellTypeList.CellTestContainerId,
 				ItemsSource = Enumerable.Range (0, 100).Select (i => new SwitchCellItem {
 					Label = "Label " + i,
 					SwitchOn =  i % 2 == 0 ? false : true,
+					OnColor = i % 2 == 0 ? Color.Firebrick : Color.GreenYellow
 				}),
 				ItemTemplate = dataTemplate
 			};

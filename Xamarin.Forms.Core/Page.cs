@@ -12,7 +12,7 @@ using Xamarin.Forms.Platform;
 namespace Xamarin.Forms
 {
 	[RenderWith(typeof(_PageRenderer))]
-	public class Page : VisualElement, ILayout, IPageController, IElementConfiguration<Page>
+	public class Page : VisualElement, ILayout, IPageController, IElementConfiguration<Page>, IPaddingElement
 	{
 		public const string BusySetSignalName = "Xamarin.BusySet";
 
@@ -26,11 +26,7 @@ namespace Xamarin.Forms
 
 		public static readonly BindableProperty IsBusyProperty = BindableProperty.Create("IsBusy", typeof(bool), typeof(Page), false, propertyChanged: (bo, o, n) => ((Page)bo).OnPageBusyChanged());
 
-		public static readonly BindableProperty PaddingProperty = BindableProperty.Create("Padding", typeof(Thickness), typeof(Page), default(Thickness), propertyChanged: (bindable, old, newValue) =>
-		{
-			var layout = (Page)bindable;
-			layout.UpdateChildrenLayout();
-		});
+		public static readonly BindableProperty PaddingProperty = PaddingElement.PaddingProperty;
 
 		public static readonly BindableProperty TitleProperty = BindableProperty.Create("Title", typeof(string), typeof(Page), null);
 
@@ -46,6 +42,8 @@ namespace Xamarin.Forms
 		bool _hasAppeared;
 
 		ReadOnlyCollection<Element> _logicalChildren;
+
+		View _titleView;
 
 		public Page()
 		{
@@ -76,8 +74,18 @@ namespace Xamarin.Forms
 
 		public Thickness Padding
 		{
-			get { return (Thickness)GetValue(PaddingProperty); }
-			set { SetValue(PaddingProperty, value); }
+			get { return (Thickness)GetValue(PaddingElement.PaddingProperty); }
+			set { SetValue(PaddingElement.PaddingProperty, value); }
+		}
+
+		Thickness IPaddingElement.PaddingDefaultValueCreator()
+		{
+			return default(Thickness);
+		}
+
+		void IPaddingElement.OnPaddingPropertyChanged(Thickness oldValue, Thickness newValue)
+		{
+			UpdateChildrenLayout();
 		}
 
 		public string Title
@@ -208,6 +216,9 @@ namespace Xamarin.Forms
 			{
 				SetInheritedBindingContext(toolbarItem, BindingContext);
 			}
+
+			if(_titleView != null)
+				SetInheritedBindingContext(_titleView, BindingContext);
 		}
 
 		protected virtual void OnChildMeasureInvalidated(object sender, EventArgs e)
@@ -222,7 +233,7 @@ namespace Xamarin.Forms
 
 		protected override void OnParentSet()
 		{
-			if (!Application.IsApplicationOrNull(RealParent) && !(RealParent is Page))
+			if (!Application.IsApplicationOrNull(RealParent) && !(RealParent is Page) && !(RealParent is BaseShellItem))
 				throw new InvalidOperationException("Parent of a Page must also be a Page");
 			base.OnParentSet();
 		}
@@ -240,9 +251,10 @@ namespace Xamarin.Forms
 				return;
 
 			var startingLayout = new List<Rectangle>(LogicalChildren.Count);
-			foreach (VisualElement c in LogicalChildren)
+			foreach (Element el in LogicalChildren)
 			{
-				startingLayout.Add(c.Bounds);
+				if (el is VisualElement c)
+					startingLayout.Add(c.Bounds);
 			}
 
 			double x = Padding.Left;
@@ -254,14 +266,14 @@ namespace Xamarin.Forms
 
 			for (var i = 0; i < LogicalChildren.Count; i++)
 			{
-				var c = (VisualElement)LogicalChildren[i];
-
-				if (c.Bounds != startingLayout[i])
+				var element = LogicalChildren[i];
+				if (element is VisualElement c)
 				{
-					EventHandler handler = LayoutChanged;
-					if (handler != null)
-						handler(this, EventArgs.Empty);
-					return;
+					if (c.Bounds != startingLayout[i])
+					{
+						LayoutChanged?.Invoke(this, EventArgs.Empty);
+						return;
+					}
 				}
 			}
 		}
@@ -305,12 +317,12 @@ namespace Xamarin.Forms
 				MessagingCenter.Send(this, BusySetSignalName, true);
 
 			OnAppearing();
-			EventHandler handler = Appearing;
-			if (handler != null)
-				handler(this, EventArgs.Empty);
+			Appearing?.Invoke(this, EventArgs.Empty);
 
 			var pageContainer = this as IPageContainer<Page>;
 			pageContainer?.CurrentPage?.SendAppearing();
+
+			FindApplication(this)?.OnPageAppearing(this);
 		}
 
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -328,23 +340,41 @@ namespace Xamarin.Forms
 			pageContainer?.CurrentPage?.SendDisappearing();
 
 			OnDisappearing();
-			EventHandler handler = Disappearing;
-			if (handler != null)
-				handler(this, EventArgs.Empty);
+			Disappearing?.Invoke(this, EventArgs.Empty);
+
+			FindApplication(this)?.OnPageDisappearing(this);
+		}
+
+		Application FindApplication(Element element)
+		{
+			if (element == null)
+				return null;
+
+			return (element.Parent is Application app) ? app : FindApplication(element.Parent);
 		}
 
 		void InternalChildrenOnCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
 		{
 			if (e.OldItems != null)
 			{
-				foreach (VisualElement item in e.OldItems.OfType<VisualElement>())
-					OnInternalRemoved(item);
+				foreach (Element item in e.OldItems)
+				{
+					if (item is VisualElement visual)
+						OnInternalRemoved(visual);
+					else
+						OnChildRemoved(item);
+				}
 			}
 
 			if (e.NewItems != null)
 			{
-				foreach (VisualElement item in e.NewItems.OfType<VisualElement>())
-					OnInternalAdded(item);
+				foreach (Element item in e.NewItems)
+				{
+					if (item is VisualElement visual)
+						OnInternalAdded(visual);
+					else
+						OnChildAdded(item);
+				}
 			}
 		}
 
@@ -409,5 +439,23 @@ namespace Xamarin.Forms
 		{
 			return _platformConfigurationRegistry.Value.On<T>();
 		}
+
+		internal void SetTitleView(View oldTitleView, View newTitleView)
+		{
+			if (oldTitleView != null)
+				oldTitleView.Parent = null;
+
+			if (newTitleView != null)
+				newTitleView.Parent = this;
+
+			_titleView = newTitleView;
+		}
+
+		// This is a dummy property for the Previewer
+		// Platform isn't needed anymore, but the Previewer will still try to set it via reflection
+		// and throw an NRE if it's not available; this fake property keeps it happy.
+		[EditorBrowsable(EditorBrowsableState.Never)]
+		[Obsolete("This property is no longer used as of version 3.4.")]
+		internal object Platform { get; set; }
 	}
 }

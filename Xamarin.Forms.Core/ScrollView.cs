@@ -8,74 +8,26 @@ namespace Xamarin.Forms
 {
 	[ContentProperty("Content")]
 	[RenderWith(typeof(_ScrollViewRenderer))]
-	public class ScrollView : Layout, IScrollViewController, IElementConfiguration<ScrollView>
+	public class ScrollView : Layout, IScrollViewController, IElementConfiguration<ScrollView>, IFlowDirectionController
 	{
-		public static readonly BindableProperty OrientationProperty = BindableProperty.Create("Orientation", typeof(ScrollOrientation), typeof(ScrollView), ScrollOrientation.Vertical);
+		#region IScrollViewController
 
-		static readonly BindablePropertyKey ScrollXPropertyKey = BindableProperty.CreateReadOnly("ScrollX", typeof(double), typeof(ScrollView), 0d);
-
-		public static readonly BindableProperty ScrollXProperty = ScrollXPropertyKey.BindableProperty;
-
-		static readonly BindablePropertyKey ScrollYPropertyKey = BindableProperty.CreateReadOnly("ScrollY", typeof(double), typeof(ScrollView), 0d);
-
-		public static readonly BindableProperty ScrollYProperty = ScrollYPropertyKey.BindableProperty;
-
-		static readonly BindablePropertyKey ContentSizePropertyKey = BindableProperty.CreateReadOnly("ContentSize", typeof(Size), typeof(ScrollView), default(Size));
-
-		public static readonly BindableProperty ContentSizeProperty = ContentSizePropertyKey.BindableProperty;
-
-		readonly Lazy<PlatformConfigurationRegistry<ScrollView>> _platformConfigurationRegistry;
-
-		View _content;
-
-		TaskCompletionSource<bool> _scrollCompletionSource;
-
-		public View Content
+		[EditorBrowsable(EditorBrowsableState.Never)]
+		public Rectangle LayoutAreaOverride
 		{
-			get { return _content; }
+			get => _layoutAreaOverride;
 			set
 			{
-				if (_content == value)
+				if (_layoutAreaOverride == value)
 					return;
-
-				OnPropertyChanging();
-				if (_content != null)
-					InternalChildren.Remove(_content);
-				_content = value;
-				if (_content != null)
-					InternalChildren.Add(_content);
-				OnPropertyChanged();
+				_layoutAreaOverride = value;
+				// Dont invalidate here, we can relayout immediately since this only impacts our innards
+				UpdateChildrenLayout();
 			}
 		}
 
-		public Size ContentSize
-		{
-			get { return (Size)GetValue(ContentSizeProperty); }
-			private set { SetValue(ContentSizePropertyKey, value); }
-		}
-
-		public ScrollOrientation Orientation
-		{
-			get { return (ScrollOrientation)GetValue(OrientationProperty); }
-			set { SetValue(OrientationProperty, value); }
-		}
-
-		public double ScrollX
-		{
-			get { return (double)GetValue(ScrollXProperty); }
-			private set { SetValue(ScrollXPropertyKey, value); }
-		}
-
-		public double ScrollY
-		{
-			get { return (double)GetValue(ScrollYProperty); }
-			private set { SetValue(ScrollYPropertyKey, value); }
-		}
-
-		public ScrollView()
-		{
-			_platformConfigurationRegistry = new Lazy<PlatformConfigurationRegistry<ScrollView>>(() => new PlatformConfigurationRegistry<ScrollView>(this));
-		}
+		[EditorBrowsable(EditorBrowsableState.Never)]
+		public event EventHandler<ScrollToRequestedEventArgs> ScrollToRequested;
 
 		[EditorBrowsable(EditorBrowsableState.Never)]
 		public Point GetScrollPositionForElement(VisualElement item, ScrollToPosition pos)
@@ -86,8 +38,9 @@ namespace Xamarin.Forms
 
 			if (position == ScrollToPosition.MakeVisible)
 			{
-				bool isItemVisible = ScrollX < y && ScrollY + Height > y;
-				if (isItemVisible)
+				var scrollBounds = new Rectangle(ScrollX, ScrollY, Width, Height);
+				var itemBounds = new Rectangle(x, y, item.Width, item.Height);
+				if (scrollBounds.Contains(itemBounds))
 					return new Point(ScrollX, ScrollY);
 				switch (Orientation)
 				{
@@ -132,9 +85,92 @@ namespace Xamarin.Forms
 			ScrollX = x;
 			ScrollY = y;
 
-			EventHandler<ScrolledEventArgs> handler = Scrolled;
-			if (handler != null)
-				handler(this, new ScrolledEventArgs(x, y));
+			Scrolled?.Invoke(this, new ScrolledEventArgs(x, y));
+		}
+
+		#endregion IScrollViewController
+
+		public static readonly BindableProperty OrientationProperty = BindableProperty.Create("Orientation", typeof(ScrollOrientation), typeof(ScrollView), ScrollOrientation.Vertical);
+
+		static readonly BindablePropertyKey ScrollXPropertyKey = BindableProperty.CreateReadOnly("ScrollX", typeof(double), typeof(ScrollView), 0d);
+
+		public static readonly BindableProperty ScrollXProperty = ScrollXPropertyKey.BindableProperty;
+
+		static readonly BindablePropertyKey ScrollYPropertyKey = BindableProperty.CreateReadOnly("ScrollY", typeof(double), typeof(ScrollView), 0d);
+
+		public static readonly BindableProperty ScrollYProperty = ScrollYPropertyKey.BindableProperty;
+
+		static readonly BindablePropertyKey ContentSizePropertyKey = BindableProperty.CreateReadOnly("ContentSize", typeof(Size), typeof(ScrollView), default(Size));
+
+		public static readonly BindableProperty ContentSizeProperty = ContentSizePropertyKey.BindableProperty;
+
+		readonly Lazy<PlatformConfigurationRegistry<ScrollView>> _platformConfigurationRegistry;
+
+		public static readonly BindableProperty HorizontalScrollBarVisibilityProperty = BindableProperty.Create(nameof(HorizontalScrollBarVisibility), typeof(ScrollBarVisibility), typeof(ScrollView), ScrollBarVisibility.Default);
+
+		public static readonly BindableProperty VerticalScrollBarVisibilityProperty = BindableProperty.Create(nameof(VerticalScrollBarVisibility), typeof(ScrollBarVisibility), typeof(ScrollView), ScrollBarVisibility.Default);
+
+		View _content;
+		TaskCompletionSource<bool> _scrollCompletionSource;
+		Rectangle _layoutAreaOverride;
+
+		public View Content
+		{
+			get { return _content; }
+			set
+			{
+				if (_content == value)
+					return;
+
+				OnPropertyChanging();
+				if (_content != null)
+					InternalChildren.Remove(_content);
+				_content = value;
+				if (_content != null)
+					InternalChildren.Add(_content);
+				OnPropertyChanged();
+			}
+		}
+
+		public Size ContentSize
+		{
+			get { return (Size)GetValue(ContentSizeProperty); }
+			private set { SetValue(ContentSizePropertyKey, value); }
+		}
+
+		public ScrollOrientation Orientation
+		{
+			get { return (ScrollOrientation)GetValue(OrientationProperty); }
+			set { SetValue(OrientationProperty, value); }
+		}
+
+		public double ScrollX
+		{
+			get { return (double)GetValue(ScrollXProperty); }
+			private set { SetValue(ScrollXPropertyKey, value); }
+		}
+
+		public double ScrollY
+		{
+			get { return (double)GetValue(ScrollYProperty); }
+			private set { SetValue(ScrollYPropertyKey, value); }
+		}
+
+		public ScrollBarVisibility HorizontalScrollBarVisibility
+		{
+			get { return (ScrollBarVisibility)GetValue(HorizontalScrollBarVisibilityProperty); }
+			set { SetValue(HorizontalScrollBarVisibilityProperty, value); }
+		}
+
+		public ScrollBarVisibility VerticalScrollBarVisibility
+		{
+			get { return (ScrollBarVisibility)GetValue(VerticalScrollBarVisibilityProperty); }
+			set { SetValue(VerticalScrollBarVisibilityProperty, value); }
+		}
+
+		public ScrollView()
+		{
+			_platformConfigurationRegistry = new Lazy<PlatformConfigurationRegistry<ScrollView>>(() => new PlatformConfigurationRegistry<ScrollView>(this));
 		}
 
 		public event EventHandler<ScrolledEventArgs> Scrolled;
@@ -160,15 +196,26 @@ namespace Xamarin.Forms
 				throw new ArgumentNullException("element");
 
 			if (!CheckElementBelongsToScrollViewer(element))
-				throw new ArgumentException("element does not belong to this ScrollVIew", "element");
+				throw new ArgumentException("element does not belong to this ScrollView", "element");
 
 			var args = new ScrollToRequestedEventArgs(element, position, animated);
 			OnScrollToRequested(args);
 			return _scrollCompletionSource.Task;
 		}
 
+		bool IFlowDirectionController.ApplyEffectiveFlowDirectionToChildContainer => false;
+		
 		protected override void LayoutChildren(double x, double y, double width, double height)
 		{
+			var over = ((IScrollViewController)this).LayoutAreaOverride;
+			if (!over.IsEmpty)
+			{
+				x = over.X + Padding.Left;
+				y = over.Y + Padding.Top;
+				width = over.Width - Padding.HorizontalThickness;
+				height = over.Height - Padding.VerticalThickness;
+			}
+
 			if (_content != null)
 			{
 				SizeRequest size;
@@ -194,6 +241,7 @@ namespace Xamarin.Forms
 		}
 
 		[Obsolete("OnSizeRequest is obsolete as of version 2.2.0. Please use OnMeasure instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		protected override SizeRequest OnSizeRequest(double widthConstraint, double heightConstraint)
 		{
 			if (Content == null)
@@ -288,12 +336,7 @@ namespace Xamarin.Forms
 		void OnScrollToRequested(ScrollToRequestedEventArgs e)
 		{
 			CheckTaskCompletionSource();
-			EventHandler<ScrollToRequestedEventArgs> handler = ScrollToRequested;
-			if (handler != null)
-				handler(this, e);
+			ScrollToRequested?.Invoke(this, e);
 		}
-
-		[EditorBrowsable(EditorBrowsableState.Never)]
-		public event EventHandler<ScrollToRequestedEventArgs> ScrollToRequested;
 	}
 }

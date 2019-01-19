@@ -7,13 +7,8 @@ using Xamarin.UITest;
 using NUnit.Framework;
 #endif
 
-namespace Xamarin.Forms.Controls
+namespace Xamarin.Forms.Controls.Issues
 {
-	public interface ICacheService
-	{
-		void ClearImageCache ();
-	}
-
 	[Preserve (AllMembers = true)]
 	[Issue (IssueTracker.Bugzilla, 32691, "Clearing an image by setting Image.Source to null, while Image.IsLoading is true, doesn't work.")]
 	public class Bugzilla32691 : TestContentPage
@@ -39,7 +34,7 @@ namespace Xamarin.Forms.Controls
 				if (btnSetOrClear.Text == KSetImageSource) {
 					ClearImageCache ();
 					image.Source =
-						"http://www.public-domain-image.com/free-images/miscellaneous/big-high-border-fence.jpg";
+						"https://raw.githubusercontent.com/xamarin/Xamarin.Forms/master/banner.png";
 					btnSetOrClear.Text = KClearImageSource;
 				} else {
 					image.Source = null;

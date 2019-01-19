@@ -154,9 +154,12 @@ namespace Xamarin.Forms.ControlGallery.iOS
 
 		public override bool FinishedLaunching(UIApplication uiApplication, NSDictionary launchOptions)
 		{
-			App.IOSVersion = int.Parse(UIDevice.CurrentDevice.SystemVersion.Substring(0, 1));
+			UISwitch.Appearance.OnTintColor = UIColor.Red;
+			var versionPart = UIDevice.CurrentDevice.SystemVersion.Split(new char[] { '.' }, StringSplitOptions.RemoveEmptyEntries);
+			App.IOSVersion = int.Parse(versionPart[0]);
 
 			Xamarin.Calabash.Start();
+			// Forms.SetFlags("CollectionView_Experimental", "Visual_Experimental", "Shell_Experimental");
 			Forms.Init();
 			FormsMaps.Init();
 			Forms.ViewInitialized += (object sender, ViewInitializedEventArgs e) =>
@@ -167,6 +170,16 @@ namespace Xamarin.Forms.ControlGallery.iOS
 					//	e.NativeView.AccessibilityIdentifier = e.View.StyleId;
 				}
 			};
+
+			if (App.IOSVersion == 11)
+			{
+				// 'Large' Title bar text
+				UINavigationBar.Appearance.LargeTitleTextAttributes = new UIStringAttributes
+				{
+					ForegroundColor = UIColor.FromRGB(0xE7, 0x63, 0x3B), // e7963b dark
+					Font = UIFont.FromName("GillSans-Italic", 40)
+				};
+			}
 
 			var app = new App();
 			_app = app;
@@ -179,6 +192,7 @@ namespace Xamarin.Forms.ControlGallery.iOS
 			MessagingCenter.Subscribe<NativeBindingGalleryPage>(this, NativeBindingGalleryPage.ReadyForNativeBindingsMessage, AddNativeBindings);
 
 			LoadApplication(app);
+
 			return base.FinishedLaunching(uiApplication, launchOptions);
 		}
 
@@ -386,6 +400,12 @@ namespace Xamarin.Forms.ControlGallery.iOS
 		{
 			_app.Reset();
 			return String.Empty;
+		}
+
+		[Export("iOSVersion")]
+		public int iOSVersion()
+		{
+			return App.IOSVersion;
 		}
 	}
 

@@ -4,49 +4,42 @@ using System;
 using System.Globalization;
 using Windows.Foundation;
 using Windows.Graphics.Display;
+using Windows.System;
+using Windows.UI.Core;
 using Windows.UI.ViewManagement;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Xamarin.Forms;
 using Xamarin.Forms.ControlGallery.WindowsUniversal;
 using Xamarin.Forms.Controls;
 using Xamarin.Forms.Platform.UWP;
 
-[assembly: ExportEffect(typeof(BorderEffect), "BorderEffect")]
+
 namespace Xamarin.Forms.ControlGallery.WindowsUniversal
 {
-	public class BorderEffect : PlatformEffect
-	{
-		protected override void OnAttached()
-		{
-			var control = Control as Control;
-			if (control == null)
-				return;
-
-			control.Background = new SolidColorBrush(Windows.UI.Colors.Aqua);
-		}
-
-		protected override void OnDetached()
-		{
-			var control = Control as Control;
-			if (control == null)
-				return;
-
-			control.Background = new SolidColorBrush(Windows.UI.Colors.Beige);
-		}
-	}
-
 	/// <summary>
 	/// An empty page that can be used on its own or navigated to within a Frame.
 	/// </summary>
 	public sealed partial class MainPage
 	{
+		Controls.App _app;
+
 		public MainPage()
 		{
 			InitializeComponent();
 
-			var app = new Controls.App();
+			// some tests need to window to be large enough to click on things
+			// can we make this only open to window size for UI Tests?
+			//var bounds = ApplicationView.GetForCurrentView().VisibleBounds;
+			//var scaleFactor = DisplayInformation.GetForCurrentView().RawPixelsPerViewPixel;
+			//var size = new Windows.Foundation.Size(bounds.Width * scaleFactor, bounds.Height * scaleFactor);
+			//ApplicationView.PreferredLaunchViewSize = size;
+			//ApplicationView.PreferredLaunchWindowingMode = ApplicationViewWindowingMode.PreferredLaunchViewSize;
+
+
+			_app = new Controls.App();
 
 			// When the native control gallery loads up, it'll let us know so we can add the nested native controls
 			MessagingCenter.Subscribe<NestedNativeControlGalleryPage>(this, NestedNativeControlGalleryPage.ReadyForNativeControlsMessage, AddNativeControls);
@@ -54,7 +47,19 @@ namespace Xamarin.Forms.ControlGallery.WindowsUniversal
 			// When the native binding gallery loads up, it'll let us know so we can set up the native bindings
 			MessagingCenter.Subscribe<NativeBindingGalleryPage>(this, NativeBindingGalleryPage.ReadyForNativeBindingsMessage, AddNativeBindings);
 
-			LoadApplication(app);
+			LoadApplication(_app);
+
+			CoreWindow.GetForCurrentThread().KeyDown += OnKeyDown;
+
+		}
+
+		void OnKeyDown(CoreWindow coreWindow, KeyEventArgs args)
+		{
+			if (args.VirtualKey == VirtualKey.Escape)
+			{
+				_app.Reset();
+				args.Handled = true;
+			}
 		}
 
 		void AddNativeControls(NestedNativeControlGalleryPage page)

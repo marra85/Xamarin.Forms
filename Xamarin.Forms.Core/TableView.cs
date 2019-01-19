@@ -111,11 +111,11 @@ namespace Xamarin.Forms
 			foreach (Cell cell in Root.SelectMany(r => r))
 				cell.Parent = this;
 
-			if (ModelChanged != null)
-				ModelChanged(this, EventArgs.Empty);
+			ModelChanged?.Invoke(this, EventArgs.Empty);
 		}
 
 		[Obsolete("OnSizeRequest is obsolete as of version 2.2.0. Please use OnMeasure instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		protected override SizeRequest OnSizeRequest(double widthConstraint, double heightConstraint)
 		{
 			var minimumSize = new Size(40, 40);
@@ -203,6 +203,11 @@ namespace Xamarin.Forms
 			public override string GetSectionTitle(int section)
 			{
 				return _root[section].Title;
+			}
+
+			public override Color GetSectionTextColor(int section)
+			{
+				return _root[section].TextColor;
 			}
 
 			protected override void OnRowSelected(object item)

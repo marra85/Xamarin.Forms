@@ -32,7 +32,7 @@ namespace Xamarin.Forms.Controls
 
 			var entry = new Entry { Placeholder = "Edit this text on entry", PlaceholderColor = Color.Pink, TextColor = Color.Yellow, BackgroundColor = Color.Green };
 
-			var frame = new Frame { HasShadow = true, BackgroundColor = Color.Maroon, OutlineColor = Color.Lime, MinimumHeightRequest = 100 };
+			var frame = new Frame { HasShadow = true, BackgroundColor = Color.Maroon, BorderColor = Color.Lime, MinimumHeightRequest = 100 };
 
 
 			var image = new Image { HeightRequest = 100, Source = "crimson.jpg" };
@@ -82,7 +82,7 @@ namespace Xamarin.Forms.Controls
 			var switchR = new Switch { BackgroundColor = Color.Fuchsia, IsToggled = true };
 			switchR.Toggled += (sender, e) =>
 			{
-				entry.Text = $"switchR is toogle {switchR.IsToggled}";
+				entry.Text = $"switchR is toggled {switchR.IsToggled}";
 			};
 			var layoutSwitch = new StackLayout { Orientation = StackOrientation.Horizontal, BackgroundColor = Color.Green };
 			layoutSwitch.Children.Add(labal);

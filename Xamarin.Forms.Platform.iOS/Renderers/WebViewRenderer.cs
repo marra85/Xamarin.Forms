@@ -1,9 +1,11 @@
 using System;
 using System.ComponentModel;
 using System.Drawing;
+using System.Threading.Tasks;
 using Foundation;
 using UIKit;
 using Xamarin.Forms.Internals;
+using Uri = System.Uri;
 
 namespace Xamarin.Forms.Platform.iOS
 {
@@ -37,8 +39,10 @@ namespace Xamarin.Forms.Platform.iOS
 			Element = element;
 			Element.PropertyChanged += HandlePropertyChanged;
 			WebView.EvalRequested += OnEvalRequested;
+			WebView.EvaluateJavaScriptRequested += OnEvaluateJavaScriptRequested;
 			WebView.GoBackRequested += OnGoBackRequested;
 			WebView.GoForwardRequested += OnGoForwardRequested;
+			WebView.ReloadRequested += OnReloadRequested;
 			Delegate = new CustomWebViewDelegate(this);
 
 			BackgroundColor = UIColor.Clear;
@@ -79,7 +83,10 @@ namespace Xamarin.Forms.Platform.iOS
 
 		public void LoadUrl(string url)
 		{
-			LoadRequest(new NSUrlRequest(new NSUrl(url)));
+			var uri = new Uri(url);
+			var safeHostUri = new Uri($"{uri.Scheme}://{uri.Authority}", UriKind.Absolute);
+			var safeRelativeUri = new Uri($"{uri.PathAndQuery}{uri.Fragment}", UriKind.Relative);
+			LoadRequest(new NSUrlRequest(new Uri(safeHostUri, safeRelativeUri)));
 		}
 
 		public override void LayoutSubviews()
@@ -99,8 +106,10 @@ namespace Xamarin.Forms.Platform.iOS
 
 				Element.PropertyChanged -= HandlePropertyChanged;
 				WebView.EvalRequested -= OnEvalRequested;
+				WebView.EvaluateJavaScriptRequested -= OnEvaluateJavaScriptRequested;
 				WebView.GoBackRequested -= OnGoBackRequested;
 				WebView.GoForwardRequested -= OnGoForwardRequested;
+				WebView.ReloadRequested -= OnReloadRequested;
 
 				_tracker?.Dispose();
 				_packager?.Dispose();
@@ -138,6 +147,16 @@ namespace Xamarin.Forms.Platform.iOS
 			EvaluateJavascript(eventArg.Script);
 		}
 
+		async Task<string> OnEvaluateJavaScriptRequested(string script)
+		{
+			var tcr = new TaskCompletionSource<string>();
+			var task = tcr.Task;
+
+			Device.BeginInvokeOnMainThread(() => { tcr.SetResult(EvaluateJavascript(script)); });
+
+			return await task.ConfigureAwait(false);
+		}
+
 		void OnGoBackRequested(object sender, EventArgs eventArgs)
 		{
 			if (CanGoBack)
@@ -158,6 +177,11 @@ namespace Xamarin.Forms.Platform.iOS
 			}
 
 			UpdateCanGoBackForward();
+		}
+
+		void OnReloadRequested(object sender, EventArgs eventArgs)
+		{
+			Reload();
 		}
 
 		void UpdateCanGoBackForward()
@@ -196,8 +220,12 @@ namespace Xamarin.Forms.Platform.iOS
 				if (webView.IsLoading)
 					return;
 
-				_renderer._ignoreSourceChanges = true;
 				var url = GetCurrentUrl();
+
+				if (url == $"file://{NSBundle.MainBundle.BundlePath}/")
+					return;
+
+				_renderer._ignoreSourceChanges = true;
 				WebView.SetValueFromRenderer(WebView.SourceProperty, new UrlWebViewSource { Url = url });
 				_renderer._ignoreSourceChanges = false;
 

@@ -32,6 +32,7 @@ namespace Xamarin.Forms.Platform.iOS
 			var cell = View.Model.GetCell(indexPath.Section, indexPath.Row);
 
 			var nativeCell = CellTableViewCell.GetNativeCell(tableView, cell);
+
 			return nativeCell;
 		}
 
@@ -56,10 +57,23 @@ namespace Xamarin.Forms.Platform.iOS
 			{
 				var reusable = tableView.DequeueReusableCell(result.GetType().FullName);
 
-				var cellRenderer = Internals.Registrar.Registered.GetHandler<CellRenderer>(result.GetType());
+				var cellRenderer = Internals.Registrar.Registered.GetHandlerForObject<CellRenderer>(result);
 				return cellRenderer.GetCell(result, reusable, Table);
 			}
 			return null;
+		}
+
+		public override void WillDisplayHeaderView(UITableView tableView, UIView headerView, nint section)
+		{
+			if (headerView is UITableViewHeaderFooterView header)
+			{
+				var sectionHeaderTextColor = View.Model.GetSectionTextColor((int)section);
+
+				if (sectionHeaderTextColor != Color.Default)
+				{
+					header.TextLabel.TextColor = sectionHeaderTextColor.ToUIColor();
+				}
+			}
 		}
 
 		public void LongPress(UILongPressGestureRecognizer gesture)

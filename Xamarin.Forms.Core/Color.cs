@@ -391,7 +391,21 @@ namespace Xamarin.Forms
 		{
 			return new Color(h, s, l, a, Mode.Hsl);
 		}
+#if !NETSTANDARD1_0
+		public static implicit operator System.Drawing.Color(Color color)
+		{
+			if (color.IsDefault)
+				return System.Drawing.Color.Empty;
+			return System.Drawing.Color.FromArgb((byte)(color._a * 255), (byte)(color._r * 255), (byte)(color._g * 255), (byte)(color._b * 255));
+		}
 
+		public static implicit operator Color(System.Drawing.Color color)
+		{
+			if (color.IsEmpty)
+				return Color.Default;
+			return FromRgba(color.R, color.G, color.B, color.A);
+		}
+#endif
 		#region Color Definitions
 
 		// matches colors in WPF's System.Windows.Media.Colors
@@ -442,6 +456,7 @@ namespace Xamarin.Forms
 		public static readonly Color ForestGreen = FromRgb(34, 139, 34);
 		public static readonly Color Fuchsia = FromRgb(255, 0, 255);
 		[Obsolete("Fuschia is obsolete as of version 1.3.0. Please use Fuchsia instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public static readonly Color Fuschia = FromRgb(255, 0, 255);
 		public static readonly Color Gainsboro = FromRgb(220, 220, 220);
 		public static readonly Color GhostWhite = FromRgb(248, 248, 255);

@@ -1,4 +1,7 @@
+using System;
+using System.ComponentModel;
 using Android.Content;
+using Android.OS;
 using Android.Views;
 
 namespace Xamarin.Forms.Platform.Android
@@ -30,7 +33,7 @@ namespace Xamarin.Forms.Platform.Android
 
 				IVisualElementRenderer renderer;
 				if ((renderer = Platform.GetRenderer(_childView)) == null)
-					Platform.SetRenderer(_childView, renderer = Platform.CreateRenderer(_childView));
+					Platform.SetRenderer(_childView, renderer = Platform.CreateRenderer(_childView, Context));
 
 				if (renderer.View.Parent != null)
 					renderer.View.RemoveFromParent();
@@ -52,7 +55,7 @@ namespace Xamarin.Forms.Platform.Android
 			}
 		}
 
-		protected override void OnLayout(bool changed, int left, int top, int right, int bottom)
+		protected override void OnLayout(bool changed, int l, int t, int r, int b)
 		{
 			if (_childView == null)
 				return;

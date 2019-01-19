@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Xamarin.Forms.CustomAttributes;
 using Xamarin.Forms.Internals;
 
-namespace Xamarin.Forms.Controls
+namespace Xamarin.Forms.Controls.Issues
 {
 	[Preserve (AllMembers = true)]
 	[Issue (IssueTracker.Github, 2783, "MemoryLeak in FrameRenderer", PlatformAffected.Android, NavigationBehavior.PushModalAsync)]
@@ -17,7 +17,7 @@ namespace Xamarin.Forms.Controls
 		{
 			Frame frPatientInfo = new Frame
 			{
-				OutlineColor = Color.Black,
+				BorderColor = Color.Black,
 				BackgroundColor = Color.White,
 				HasShadow = true,
 				HorizontalOptions = LayoutOptions.Center,

@@ -4,10 +4,11 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using Xamarin.Forms.Internals;
 
 namespace Xamarin.Forms
 {
-	public abstract class Cell : Element, ICellController
+	public abstract class Cell : Element, ICellController, IElementConfiguration<Cell>, IFlowDirectionController, IPropertyPropagationController, IVisualController
 	{
 		public const int DefaultCellHeight = 40;
 		public static readonly BindableProperty IsEnabledProperty = BindableProperty.Create("IsEnabled", typeof(bool), typeof(Cell), true, propertyChanged: OnIsEnabledPropertyChanged);
@@ -17,6 +18,47 @@ namespace Xamarin.Forms
 		double _height = -1;
 
 		bool _nextCallToForceUpdateSizeQueued;
+
+		readonly Lazy<PlatformConfigurationRegistry<Cell>> _platformConfigurationRegistry;
+
+		public Cell()
+		{
+			_platformConfigurationRegistry = new Lazy<PlatformConfigurationRegistry<Cell>>(() => new PlatformConfigurationRegistry<Cell>(this));
+		}
+
+		EffectiveFlowDirection _effectiveFlowDirection = default(EffectiveFlowDirection);
+		EffectiveFlowDirection IFlowDirectionController.EffectiveFlowDirection
+		{
+			get { return _effectiveFlowDirection; }
+			set
+			{
+				if (value == _effectiveFlowDirection)
+					return;
+
+				_effectiveFlowDirection = value;
+
+				var ve = (Parent as VisualElement);
+				ve?.InvalidateMeasureInternal(InvalidationTrigger.Undefined);
+				OnPropertyChanged(VisualElement.FlowDirectionProperty.PropertyName);
+			}
+		}
+
+		IVisual _effectiveVisual = Xamarin.Forms.VisualMarker.Default;
+		IVisual IVisualController.EffectiveVisual
+		{
+			get { return _effectiveVisual; }
+			set
+			{
+				_effectiveVisual = value;
+				OnPropertyChanged(VisualElement.VisualProperty.PropertyName);
+			}
+		}
+		IVisual IVisualController.Visual => Xamarin.Forms.VisualMarker.MatchParent;
+
+		bool IFlowDirectionController.ApplyEffectiveFlowDirectionToChildContainer => true;
+
+		IFlowDirectionController FlowController => this;
+		IPropertyPropagationController PropertyPropagationController => this;
 
 		public IList<MenuItem> ContextActions
 		{
@@ -75,6 +117,8 @@ namespace Xamarin.Forms
 			}
 		}
 
+		double IFlowDirectionController.Width => (Parent as VisualElement)?.Width ?? 0;
+
 		public event EventHandler Appearing;
 
 		public event EventHandler Disappearing;
@@ -82,12 +126,17 @@ namespace Xamarin.Forms
 		[EditorBrowsable(EditorBrowsableState.Never)]
 		public event EventHandler ForceUpdateSizeRequested;
 
+		public IPlatformElementConfiguration<T, Cell> On<T>() where T : IConfigPlatform
+		{
+			return _platformConfigurationRegistry.Value.On<T>();
+		}
+
 		public void ForceUpdateSize()
 		{
 			if (_nextCallToForceUpdateSizeQueued)
 				return;
 
-			if ((Parent as ListView)?.HasUnevenRows == true)
+			if ((Parent as ListView)?.HasUnevenRows == true || (Parent as TableView)?.HasUnevenRows == true)
 			{
 				_nextCallToForceUpdateSizeQueued = true;
 				OnForceUpdateSizeRequested();
@@ -97,17 +146,10 @@ namespace Xamarin.Forms
 		public event EventHandler Tapped;
 
 		protected internal virtual void OnTapped()
-		{
-			if (Tapped != null)
-				Tapped(this, EventArgs.Empty);
-		}
+			=> Tapped?.Invoke(this, EventArgs.Empty);
 
 		protected virtual void OnAppearing()
-		{
-			EventHandler handler = Appearing;
-			if (handler != null)
-				handler(this, EventArgs.Empty);
-		}
+			=> Appearing?.Invoke(this, EventArgs.Empty);
 
 		protected override void OnBindingContextChanged()
 		{
@@ -121,11 +163,7 @@ namespace Xamarin.Forms
 		}
 
 		protected virtual void OnDisappearing()
-		{
-			EventHandler handler = Disappearing;
-			if (handler != null)
-				handler(this, EventArgs.Empty);
-		}
+			=> Disappearing?.Invoke(this, EventArgs.Empty);
 
 		protected override void OnParentSet()
 		{
@@ -136,6 +174,8 @@ namespace Xamarin.Forms
 			}
 
 			base.OnParentSet();
+
+			PropertyPropagationController.PropagatePropertyChanged(null);
 		}
 
 		protected override void OnPropertyChanging(string propertyName = null)
@@ -147,6 +187,8 @@ namespace Xamarin.Forms
 					RealParent.PropertyChanged -= OnParentPropertyChanged;
 					RealParent.PropertyChanging -= OnParentPropertyChanging;
 				}
+
+				PropertyPropagationController.PropagatePropertyChanged(null);
 			}
 
 			base.OnPropertyChanging(propertyName);
@@ -172,6 +214,11 @@ namespace Xamarin.Forms
 				container.SendCellDisappearing(this);
 		}
 
+		void IPropertyPropagationController.PropagatePropertyChanged(string propertyName)
+		{
+			PropertyPropagationExtensions.PropagatePropertyChanged(propertyName, this, LogicalChildren);
+		}
+
 		void OnContextActionsChanged(object sender, NotifyCollectionChangedEventArgs e)
 		{
 			for (var i = 0; i < _contextActions.Count; i++)
@@ -184,9 +231,7 @@ namespace Xamarin.Forms
 		{
 			// don't run more than once per 16 milliseconds
 			await Task.Delay(TimeSpan.FromMilliseconds(16));
-			EventHandler handler = ForceUpdateSizeRequested;
-			if (handler != null)
-				handler(this, null);
+			ForceUpdateSizeRequested?.Invoke(this, null);
 
 			_nextCallToForceUpdateSizeQueued = false;
 		}
@@ -202,6 +247,9 @@ namespace Xamarin.Forms
 			// its uncommon enough that we don't want to take the penalty of N GetValue calls to verify.
 			if (e.PropertyName == "RowHeight")
 				OnPropertyChanged("RenderHeight");
+			else if (e.PropertyName == VisualElement.FlowDirectionProperty.PropertyName ||
+					 e.PropertyName == VisualElement.VisualProperty.PropertyName)
+				PropertyPropagationController.PropagatePropertyChanged(e.PropertyName);
 		}
 
 		void OnParentPropertyChanging(object sender, PropertyChangingEventArgs e)

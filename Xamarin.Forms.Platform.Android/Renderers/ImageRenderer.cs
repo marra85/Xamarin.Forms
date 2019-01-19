@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using Android.Content;
 using Android.Graphics;
 using Android.Views;
 using AImageView = Android.Widget.ImageView;
@@ -11,6 +12,7 @@ namespace Xamarin.Forms.Platform.Android
 	internal interface IImageRendererController
 	{
 		void SkipInvalidate();
+		bool IsDisposed { get; }
 	}
 
 	public class ImageRenderer : ViewRenderer<Image, AImageView>
@@ -18,6 +20,13 @@ namespace Xamarin.Forms.Platform.Android
 		bool _isDisposed;
 		readonly MotionEventHelper _motionEventHelper = new MotionEventHelper();
 
+		public ImageRenderer(Context context) : base(context)
+		{
+			AutoPackage = false;
+		}
+
+		[Obsolete("This constructor is obsolete as of version 2.5. Please use ImageRenderer(Context) instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public ImageRenderer()
 		{
 			AutoPackage = false;
@@ -103,15 +112,15 @@ namespace Xamarin.Forms.Platform.Android
 				return;
 			}
 
-			await Control.UpdateBitmap(Element, previous);
+			await Control.UpdateBitmap(Element, previous).ConfigureAwait(false);
 		}
 
-        public override bool OnTouchEvent(MotionEvent e)
-        {
-            if (base.OnTouchEvent(e))
-                return true;
+		public override bool OnTouchEvent(MotionEvent e)
+		{
+			if (base.OnTouchEvent(e))
+				return true;
 
-            return _motionEventHelper.HandleMotionEvent(Parent);
-        }
-    }
+			return _motionEventHelper.HandleMotionEvent(Parent, e);
+		}
+	}
 }

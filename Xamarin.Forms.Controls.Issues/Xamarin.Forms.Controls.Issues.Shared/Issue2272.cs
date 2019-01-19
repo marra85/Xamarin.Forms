@@ -3,6 +3,7 @@
 using Xamarin.Forms;
 using Xamarin.Forms.CustomAttributes;
 using Xamarin.Forms.Internals;
+using System.Threading.Tasks;
 
 #if UITEST
 using NUnit.Framework;
@@ -11,13 +12,16 @@ using Xamarin.UITest.Android;
 
 namespace Xamarin.Forms.Controls.Issues
 {
+#if UITEST
+	[NUnit.Framework.Category(Core.UITests.UITestCategories.UwpIgnore)]
+#endif
 	[Preserve (AllMembers=true)]
 	[Issue (IssueTracker.Github, 2272, "Entry text updating set focus on the beginning of text not the end of it", PlatformAffected.Android)]
 	public class Issue2272 : TestContentPage
 	{
 		protected override void Init ()
 		{
-			var userNameEditor = new Entry () { Text = "userNameEditorEmptyString" };
+			var userNameEditor = new Entry () { AutomationId = "userNameEditorEmptyString", Text = "userNameEditorEmptyString" };
 			userNameEditor.Focused += (sender, args) => {
 				userNameEditor.Text = "focused";
 			};
@@ -36,10 +40,12 @@ namespace Xamarin.Forms.Controls.Issues
 #endif
 		public void TestFocusIsOnTheEndAfterSettingText ()
 		{
+			RunningApp.WaitForElement("userNameEditorEmptyString");
 			RunningApp.Tap (c => c.Marked ("userNameEditorEmptyString"));
 			RunningApp.EnterText ("1");
 			PressEnter ();
-			Assert.Greater (RunningApp.Query (c => c.Marked ("focused1")).Length, 0);
+			var q = RunningApp.Query(c => c.Marked("userNameEditorEmptyString"));
+			Assert.AreEqual("focused1", q[0].Text);
 		}
 
 		void PressEnter ()

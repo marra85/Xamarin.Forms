@@ -51,7 +51,7 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void InvalidCtor()
 		{
-			Assert.Throws<ArgumentNullException>(() => new TypedBinding<MockViewModel, string>(null, (mvm, s) => mvm.Text = s, null), "Allowed null getter");
+			Assert.Throws<ArgumentNullException>(() => new TypedBinding<MockViewModel, string>((Func<MockViewModel, string>)null, (mvm, s) => mvm.Text = s, null), "Allowed null getter");
 		}
 
 		[Test, NUnit.Framework.Category("[Binding] Set Value")]
@@ -797,10 +797,11 @@ namespace Xamarin.Forms.Core.UnitTests
 		}
 
 #if !WINDOWS_PHONE
-		[Test]
-		[SetUICulture("pt-PT")]
-		public void ValueConverterCulture()
+		[TestCase("en-US"), TestCase("pt-PT")]
+		public void ValueConverterCulture(string culture)
 		{
+			System.Threading.Thread.CurrentThread.CurrentCulture = System.Threading.Thread.CurrentThread.CurrentUICulture =new System.Globalization.CultureInfo(culture);
+
 			var converter = new TestConverterCulture();
 			var vm = new MockViewModel();
 			var property = BindableProperty.Create("Text", typeof(string), typeof(MockBindable), "Bar", BindingMode.OneWayToSource);
@@ -814,7 +815,7 @@ namespace Xamarin.Forms.Core.UnitTests
 			bindable.SetBinding(property, binding);
 			bindable.BindingContext = vm;
 
-			Assert.AreEqual("pt-PT", vm.Text);
+			Assert.AreEqual(culture, vm.Text);
 		}
 #endif
 
@@ -972,6 +973,50 @@ namespace Xamarin.Forms.Core.UnitTests
 			Assert.AreEqual(property.DefaultValue, bindable.GetValue(property));
 			Assert.That(log.Messages.Count, Is.EqualTo(0),
 				"An error was logged: " + log.Messages.FirstOrDefault());
+		}
+
+		[Test, Category("[Binding] Complex paths")]
+		[Description("When part of a complex path can not be evaluated during an update, bindables should return to their default value, or TargetNullValue")]
+		public void NullContextUsesFallbackValue()
+		{
+			var vm = new ComplexMockViewModel {
+				Model = new ComplexMockViewModel {
+					Text = "vm value"
+				}
+			};
+
+			var property = BindableProperty.Create("Text", typeof(string), typeof(MockBindable), "foo bar");
+			var binding = new TypedBinding<ComplexMockViewModel, string>(cvm => cvm.Model.Text, (cvm, t) => cvm.Model.Text = t, new[] {
+				new Tuple<Func<ComplexMockViewModel, object>, string>(cvm=>cvm, "Model"),
+				new Tuple<Func<ComplexMockViewModel, object>, string>(cvm=>cvm.Model, "Text")
+			}) { Mode = BindingMode.OneWay, FallbackValue = "fallback" };
+			var bindable = new MockBindable();
+			bindable.SetBinding(property, binding);
+			bindable.BindingContext = vm;
+
+			Assume.That(bindable.GetValue(property), Is.EqualTo(vm.Model.Text));
+
+			bindable.BindingContext = null;
+
+			Assert.AreEqual("fallback", bindable.GetValue(property));
+			Assert.That(log.Messages.Count, Is.EqualTo(0),
+				"An error was logged: " + log.Messages.FirstOrDefault());
+		}
+
+		[Test]
+		//https://github.com/xamarin/Xamarin.Forms/issues/4103
+		public void TestTargetNullValue()
+		{
+			var property = BindableProperty.Create("Text", typeof(string), typeof(MockBindable), default(string));
+			var binding = new TypedBinding<MockViewModel, string>(vm => vm.Text, null, null) { TargetNullValue = "target null"};
+			var bindable = new MockBindable();
+			bindable.SetBinding(property, binding);
+			bindable.BindingContext = new MockViewModel("initial");
+			Assert.That(bindable.GetValue(property), Is.EqualTo("initial"));
+
+			bindable.BindingContext = new MockViewModel(null);
+			Assert.That(bindable.GetValue(property), Is.EqualTo("target null"));
+
 		}
 
 		[Test]
@@ -1137,11 +1182,11 @@ namespace Xamarin.Forms.Core.UnitTests
 		}
 
 #if !WINDOWS_PHONE
-		[Test]
-		[SetCulture("pt-PT")]
-		[SetUICulture("pt-PT")]
-		public void ConvertIsCultureInvariant()
+		[TestCase("en-US"), TestCase("pt-PT")]
+		public void ConvertIsCultureInvariant(string culture)
 		{
+			System.Threading.Thread.CurrentThread.CurrentCulture = System.Threading.Thread.CurrentThread.CurrentUICulture = new CultureInfo(culture);
+
 			var slider = new Slider();
 			var vm = new MockViewModel { Text = "0.5" };
 			slider.BindingContext = vm;
@@ -1386,6 +1431,65 @@ namespace Xamarin.Forms.Core.UnitTests
 		}
 
 		[Test]
+		public void OneTimeBindingDoesntUpdateOnPropertyChanged()
+		{
+			var view = new VisualElement();
+			var bp1t = BindableProperty.Create("Foo", typeof(string), typeof(VisualElement));
+			var bp1w = BindableProperty.Create("Foo", typeof(string), typeof(VisualElement));
+			var vm = new MockViewModel("foobar");
+			view.BindingContext = vm;
+			var b1t = CreateBinding(mode: BindingMode.OneTime);
+			var b1w = CreateBinding(mode: BindingMode.OneWay);
+
+			view.SetBinding(bp1t, b1t);
+			view.SetBinding(bp1w, b1w);
+			Assert.That(view.GetValue(bp1w), Is.EqualTo("foobar"));
+			Assert.That(view.GetValue(bp1t), Is.EqualTo("foobar"));
+
+			vm.Text = "qux";
+			Assert.That(view.GetValue(bp1w), Is.EqualTo("qux"));
+			Assert.That(view.GetValue(bp1t), Is.EqualTo("foobar"));
+		}
+
+		[Test]
+		public void OneTimeBindingUpdatesOnBindingContextChanged()
+		{
+			var view = new VisualElement();
+			var bp1t = BindableProperty.Create("Foo", typeof(string), typeof(VisualElement));
+			var bp1w = BindableProperty.Create("Foo", typeof(string), typeof(VisualElement));
+			view.BindingContext = new MockViewModel("foobar");
+			var b1t = CreateBinding(mode: BindingMode.OneTime);
+			var b1w = CreateBinding(mode: BindingMode.OneWay);
+
+			view.SetBinding(bp1t, b1t);
+			view.SetBinding(bp1w, b1w);
+			Assert.That(view.GetValue(bp1w), Is.EqualTo("foobar"));
+			Assert.That(view.GetValue(bp1t), Is.EqualTo("foobar"));
+
+			view.BindingContext = new MockViewModel("qux");
+			Assert.That(view.GetValue(bp1w), Is.EqualTo("qux"));
+			Assert.That(view.GetValue(bp1t), Is.EqualTo("qux"));
+		}
+
+		[Test]
+		public void OneTimeBindingDoesntUpdateNeedSettersOrHandlers()
+		{
+			var view = new VisualElement();
+			var bp1t = BindableProperty.Create("Foo", typeof(string), typeof(VisualElement));
+			var vm = new MockViewModel("foobar");
+			view.BindingContext = vm;
+
+			var b1t = new TypedBinding<MockViewModel, string>(v => v.Text, null, null);
+
+			view.SetBinding(bp1t, b1t);
+			Assert.That(view.GetValue(bp1t), Is.EqualTo("foobar"));
+
+			vm.Text = "qux";
+			Assert.That(view.GetValue(bp1t), Is.EqualTo("foobar"));
+			Assert.Pass(); //doesn't throw
+		}
+
+		[Test]
 		[Ignore]
 		public void SpeedTestApply()
 		{
@@ -1459,7 +1563,6 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Ignore]
 		public void SpeedTestSetBC()
 		{
-
 			var property = BindableProperty.Create("Foo", typeof(string), typeof(MockBindable));
 			var vm0 = new MockViewModel { Text = "Foo" };
 			var vm1 = new MockViewModel { Text = "Bar" };
@@ -1521,6 +1624,67 @@ namespace Xamarin.Forms.Core.UnitTests
 			Assert.AreEqual("Bar", bindable.GetValue(property));
 
 			Assert.Fail($"Setting BC for {it} Typedbindings\t\t\t: {swtb.ElapsedMilliseconds}ms.\nSetting BC for {it} Typedbindings (without INPC)\t: {swtbh.ElapsedMilliseconds}ms.\nSetting BC for {it} Bindings\t\t\t\t: {swb.ElapsedMilliseconds}ms.\nSetting  {it} values\t\t\t\t\t: {swsv.ElapsedMilliseconds}ms.");
+		}
+
+		class VM3650 : INotifyPropertyChanged
+		{
+			public event PropertyChangedEventHandler PropertyChanged;
+
+			public int Count { get; set; }
+
+			string _title = "default";
+			public string Title
+			{
+				get {
+					Count++;
+					return _title;
+				}
+				set {
+					_title = value;
+					PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Title"));
+				}
+			}
+		}
+
+		[Test]
+		//https://github.com/xamarin/Xamarin.Forms/issues/3650
+		//https://github.com/xamarin/Xamarin.Forms/issues/3613
+		public void TypedBindingsShouldNotHang()
+		{
+			var typedBinding = new TypedBinding<VM3650, string>(
+				vm => vm.Title,
+				(vm, s) => vm.Title = s,
+				new Tuple<Func<VM3650, object>, string>[] {
+					new Tuple<Func<VM3650, object>, string>(vm=>vm, "Title")
+				});
+			var vm3650 = new VM3650();
+			var label = new Label();
+			label.SetBinding(Label.TextProperty, typedBinding);
+			label.BindingContext = vm3650;
+
+			Assert.That(label.Text, Is.EqualTo("default"));
+			Assert.That(vm3650.Count, Is.EqualTo(1));
+
+			vm3650.Count = 0;
+			vm3650.Title = "foo";
+			Assert.That(label.Text, Is.EqualTo("foo"));
+			Assert.That(vm3650.Count, Is.EqualTo(1));
+
+			vm3650.Count = 0;
+			vm3650.Title = "bar";
+			Assert.That(label.Text, Is.EqualTo("bar"));
+			Assert.That(vm3650.Count, Is.EqualTo(1));
+
+			vm3650.Count = 0;
+			vm3650.Title = "baz";
+			Assert.That(label.Text, Is.EqualTo("baz"));
+			Assert.That(vm3650.Count, Is.EqualTo(1));
+
+			vm3650.Count = 0;
+			vm3650.Title = "qux";
+			Assert.That(label.Text, Is.EqualTo("qux"));
+			Assert.That(vm3650.Count, Is.EqualTo(1));
+
 		}
 	}
 }

@@ -32,5 +32,9 @@ namespace Xamarin.Forms.Internals
 		void StartTimer(TimeSpan interval, Func<bool> callback);
 
 		string RuntimePlatform { get; }
+
+		void QuitApplication();
+
+		SizeRequest GetNativeSize(VisualElement view, double widthConstraint, double heightConstraint);
 	}
 }

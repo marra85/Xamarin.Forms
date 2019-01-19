@@ -7,21 +7,24 @@ using System.Threading.Tasks;
 using Xamarin.Forms.CustomAttributes;
 using Xamarin.Forms.Internals;
 
-namespace Xamarin.Forms.Controls
+namespace Xamarin.Forms.Controls.Issues
 {
 	[Preserve (AllMembers=true)]
 	[Issue (IssueTracker.None, 0, "Complex ListView", PlatformAffected.All)]
 	public class ComplexListView
 		: ContentPage
 	{
+		PerformanceProvider _PerformanceProvider = new PerformanceProvider();
+
 		public ComplexListView()
 		{
-			Performance.Clear();
+			Performance.SetProvider(_PerformanceProvider);
+			_PerformanceProvider.Clear();
 
 			var showPerf = new Button { Text = "Performance" };
 			showPerf.Clicked += (sender, args) => {
-				Performance.DumpStats();
-				Performance.Clear();
+				_PerformanceProvider.DumpStats();
+				_PerformanceProvider.Clear();
 			};
 
 			Content = new StackLayout {
@@ -39,8 +42,14 @@ namespace Xamarin.Forms.Controls
 				}
 			};
 		}
+
+		~ComplexListView()
+		{
+			Performance.SetProvider(null);
+		}
 	}
 
+	[Preserve(AllMembers = true)]
 	internal class ComplexViewCell
 		: ViewCell
 	{

@@ -76,7 +76,7 @@ namespace Xamarin.Forms.Core.UnitTests
 			[Values (NamedSize.Default, NamedSize.Large, NamedSize.Medium, NamedSize.Small, NamedSize.Micro)] NamedSize size,
 			[Values (FontAttributes.None, FontAttributes.Bold, FontAttributes.Italic, FontAttributes.Bold | FontAttributes.Italic)] FontAttributes attributes)
 		{
-			var label = new Label {Platform = new UnitPlatform ()};
+			var label = new Label();
 			double startSize = label.FontSize;
 			var startAttributes = label.FontAttributes;
 
@@ -100,7 +100,7 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void AssignToFontFamilyUpdatesFont ()
 		{
-			var label = new Label {Platform = new UnitPlatform ()};
+			var label = new Label();
 
 			label.FontFamily = "CrazyFont";
 			Assert.AreEqual (label.Font, Font.OfSize ("CrazyFont", label.FontSize));
@@ -109,7 +109,7 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void AssignToFontSizeUpdatesFont ()
 		{
-			var label = new Label {Platform = new UnitPlatform ()};
+			var label = new Label();
 
 			label.FontSize = 1000;
 			Assert.AreEqual (label.Font, Font.SystemFontOfSize (1000));
@@ -118,7 +118,7 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void AssignedToFontSizeUpdatesFontDouble ()
 		{
-			var label = new Label {Platform = new UnitPlatform ()};
+			var label = new Label();
 
 			label.FontSize = 10.7;
 			Assert.AreEqual (label.Font, Font.SystemFontOfSize (10.7));
@@ -127,7 +127,7 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void AssignedToFontSizeDouble ()
 		{
-			var label = new Label {Platform = new UnitPlatform ()};
+			var label = new Label();
 
 			label.FontSize = 10.7;
 			Assert.AreEqual (label.FontSize, 10.7);
@@ -137,7 +137,7 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void AssignToFontAttributesUpdatesFont ()
 		{
-			var label = new Label {Platform = new UnitPlatform ()};
+			var label = new Label();
 
 			label.FontAttributes = FontAttributes.Italic | FontAttributes.Bold;
 			Assert.AreEqual (label.Font, Font.SystemFontOfSize (label.FontSize, FontAttributes.Bold | FontAttributes.Italic));
@@ -146,10 +146,12 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void LabelResizesWhenFontChanges ()
 		{
-			var label = new Label {Platform = new UnitPlatform ((ve, w, h) => {
+			Device.PlatformServices = new MockPlatformServices(getNativeSizeFunc:(ve, w, h) => {
 				var l = (Label) ve;
 				return new SizeRequest(new Size(l.Font.FontSize, l.Font.FontSize));
-			}), IsPlatformEnabled = true};
+			});
+
+			var label = new Label {IsPlatformEnabled = true};
 
 			Assert.AreEqual (label.Font.FontSize, label.GetSizeRequest (double.PositiveInfinity, double.PositiveInfinity).Request.Width);
 
@@ -189,14 +191,26 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void ManuallySetFontSizeNotOverridenByStyle ()
 		{
 			var label = new Label ();
-
-			Assert.AreEqual (10.0, label.FontSize);
+			Assume.That (label.FontSize, Is.EqualTo(10.0));
 
 			label.SetValue (Label.FontSizeProperty, 2.0, false);
 			Assert.AreEqual (2.0, label.FontSize);
 
 			label.SetValue (Label.FontSizeProperty, 1.0, true);
 			Assert.AreEqual (2.0, label.FontSize);
+		}
+
+		[Test]
+		public void ManuallySetFontSizeNotOverridenByFontSetInStyle()
+		{
+			var label = new Label();
+			Assume.That(label.FontSize, Is.EqualTo(10.0));
+
+			label.SetValue(Label.FontSizeProperty, 2.0);
+			Assert.AreEqual(2.0, label.FontSize);
+
+			label.SetValue(Label.FontProperty, Font.SystemFontOfSize(1.0), fromStyle: true);
+			Assert.AreEqual(2.0, label.FontSize);
 		}
 
 		[Test]

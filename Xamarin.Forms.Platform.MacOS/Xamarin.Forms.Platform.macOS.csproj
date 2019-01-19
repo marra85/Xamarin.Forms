@@ -62,11 +62,24 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="Xamarin.Mac" />
+    <Reference Include="netstandard" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Net.Http" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\Xamarin.Forms.Platform.iOS\Extensions\LabelExtensions.cs">
+      <Link>Extensions\LabelExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\Xamarin.Forms.Platform.iOS\Flags.cs">
+      <Link>Flags.cs</Link>
+    </Compile>
+    <Compile Include="Controls\FormsBoxView.cs" />
+    <Compile Include="..\Xamarin.Forms.Platform.iOS\IVisualNativeElementRenderer.cs">
+      <Link>IVisualNativeElementRenderer.cs</Link>
+    </Compile>
+    <Compile Include="Controls\FormsNSDatePicker.cs" />
+    <Compile Include="Extensions\FlowDirectionExtensions.cs" />
     <Compile Include="FormsApplicationDelegate.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PlatformRenderer.cs" />
@@ -88,6 +101,7 @@
     <Compile Include="..\Xamarin.Forms.Platform.iOS\EffectUtilities.cs">
       <Link>EffectUtilities.cs</Link>
     </Compile>
+    <Compile Include="Renderers\FlippedClipView.cs" />
     <Compile Include="Renderers\PageRenderer.cs" />
     <Compile Include="Renderers\DefaultRenderer.cs" />
     <Compile Include="Extensions\AlignmentExtensions.cs" />
@@ -195,7 +209,6 @@
     <Compile Include="..\Xamarin.Forms.Platform.iOS\PlatformEffect.cs">
       <Link>PlatformEffect.cs</Link>
     </Compile>
-    <Compile Include="Controls\NSToolbarItemGroup.cs" />
     <Compile Include="..\Xamarin.Forms.Platform.iOS\Extensions\PlatformConfigurationExtensions.cs">
       <Link>Extensions\PlatformConfigurationExtensions.cs</Link>
     </Compile>
@@ -223,6 +236,7 @@
     <Compile Include="..\Xamarin.Forms.Platform.iOS\VisualElementRenderer.cs">
       <Link>VisualElementRenderer.cs</Link>
     </Compile>
+    <Compile Include="Extensions\NSMenuExtensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Xamarin.Forms.Platform\Xamarin.Forms.Platform.csproj">
@@ -234,6 +248,6 @@
       <Name>Xamarin.Forms.Core</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup />
   <Import Project="$(MSBuildExtensionsPath)\Xamarin\Mac\Xamarin.Mac.CSharp.targets" />
+  <Target Name="_VerifyBuildSignature" />
 </Project>

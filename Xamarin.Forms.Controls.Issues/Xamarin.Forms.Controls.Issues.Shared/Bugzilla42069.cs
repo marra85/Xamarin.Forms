@@ -3,7 +3,7 @@ using Xamarin.Forms.Controls.Issues;
 using Xamarin.Forms.CustomAttributes;
 using Xamarin.Forms.Internals;
 
-namespace Xamarin.Forms.Controls
+namespace Xamarin.Forms.Controls.Issues
 {
 	[Preserve(AllMembers = true)]
 	[Issue(IssueTracker.Bugzilla, 42069, "Garbage Collector can not collect pages that use ImageSource as a StaticResource",
@@ -24,8 +24,6 @@ namespace Xamarin.Forms.Controls
 				default:
 					smallImage = "coffee.png";
 					break;
-				case Device.WinPhone:
-				case Device.WinRT:
 				case Device.UWP:
 					smallImage = "bank.png";
 					break;

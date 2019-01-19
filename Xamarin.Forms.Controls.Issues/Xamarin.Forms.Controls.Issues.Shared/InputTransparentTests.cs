@@ -15,6 +15,7 @@ namespace Xamarin.Forms.Controls.Issues
 {
 #if UITEST
 	[Category(UITestCategories.InputTransparent)]
+	[NUnit.Framework.Category(UITestCategories.UwpIgnore)]
 #endif
 
 	[Preserve(AllMembers = true)]
@@ -65,13 +66,15 @@ namespace Xamarin.Forms.Controls.Issues
 				// These controls show a pop-up which we have to cancel/done out of before we can continue
 #if __ANDROID__
 				var cancelButtonText = "Cancel";
+				System.Threading.Tasks.Task.Delay(1000).Wait();
+				RunningApp.Back();
 #elif __IOS__
 				var cancelButtonText = "Done";
+				RunningApp.WaitForElement(q => q.Marked(cancelButtonText));
+				RunningApp.Tap(q => q.Marked(cancelButtonText));
 #else
 				var cancelButtonText = "Cancel";
 #endif
-				RunningApp.WaitForElement(q => q.Marked(cancelButtonText));
-				RunningApp.Tap(q => q.Marked(cancelButtonText));
 			}
 
 			// Since InputTransparent is set to false, the start label should not have changed
@@ -184,7 +187,9 @@ namespace Xamarin.Forms.Controls.Issues
 				LineBreakMode = LineBreakMode.WordWrap,
 				Text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
 			}));
-			col1.Children.Add(MenuButton(nameof(SearchBar), () => new SearchBar()));
+
+			// We don't use 'SearchBar' here because on Android it sometimes finds the wrong control
+			col1.Children.Add(MenuButton("TestSearchBar", () => new SearchBar()));
 
 			col2.Children.Add(MenuButton(nameof(DatePicker), () => new DatePicker()));
 			col2.Children.Add(MenuButton(nameof(TimePicker), () => new TimePicker()));

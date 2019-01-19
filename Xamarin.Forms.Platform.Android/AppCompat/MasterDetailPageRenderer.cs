@@ -1,14 +1,17 @@
+
 using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using Android.Content;
 using Android.Support.V4.Widget;
 using Android.Views;
 using Android.Support.V4.App;
 using AView = Android.Views.View;
+using Android.OS;
 
 namespace Xamarin.Forms.Platform.Android.AppCompat
 {
-	public class MasterDetailPageRenderer : DrawerLayout, IVisualElementRenderer, DrawerLayout.IDrawerListener, IManageFragments
+	public class MasterDetailPageRenderer : DrawerLayout, IVisualElementRenderer, DrawerLayout.IDrawerListener, IManageFragments, ILifeCycleState
 	{
 		#region Statics
 
@@ -25,7 +28,15 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 		bool _presented;
 		VisualElementTracker _tracker;
 		FragmentManager _fragmentManager;
+		string _defaultContentDescription;
+		string _defaultHint;
 
+		public MasterDetailPageRenderer(Context context) : base(context)
+		{
+		}
+
+		[Obsolete("This constructor is obsolete as of version 2.5. Please use MasterDetailPageRenderer(Context) instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public MasterDetailPageRenderer() : base(Forms.Context)
 		{
 		}
@@ -147,6 +158,8 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 				UpdateMaster();
 				UpdateDetail();
 
+				UpdateFlowDirection();
+
 				((IMasterDetailPageController)newElement).BackButtonPressed += OnBackButtonPressed;
 				newElement.PropertyChanged += HandlePropertyChanged;
 				newElement.Appearing += MasterDetailPageAppearing;
@@ -156,6 +169,9 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 
 				Presented = newElement.IsPresented;
 
+				if (element != null && !string.IsNullOrEmpty(element.AutomationId))
+					SetAutomationId(element.AutomationId);
+
 				newElement.SendViewInitialized(this);
 			}
 
@@ -164,11 +180,14 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 			// Make sure to initialize this AFTER event is fired
 			if (_tracker == null)
 				_tracker = new VisualElementTracker(this);
+
+			if (element != null && !string.IsNullOrEmpty(element.AutomationId))
+				SetAutomationId(element.AutomationId);
+
+			SetContentDescription();
 		}
 
-		void IVisualElementRenderer.SetLabelFor(int? id)
-		{
-		}
+		void IVisualElementRenderer.SetLabelFor(int? id) => LabelFor = id ?? LabelFor;
 
 		VisualElementTracker IVisualElementRenderer.Tracker => _tracker;
 
@@ -180,6 +199,12 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 		ViewGroup IVisualElementRenderer.ViewGroup => this;
 
 		AView IVisualElementRenderer.View => this;
+
+		bool ILifeCycleState.MarkedForDispose { get; set; } = false;
+
+		protected virtual void SetAutomationId(string id) => FastRenderers.AutomationPropertiesProvider.SetAutomationId(this, Element, id);
+
+		protected virtual void SetContentDescription() => FastRenderers.AutomationPropertiesProvider.SetContentDescription(this, Element, ref _defaultContentDescription, ref _defaultHint);
 
 		protected override void Dispose(bool disposing)
 		{
@@ -235,7 +260,7 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 		protected override void OnDetachedFromWindow()
 		{
 			base.OnDetachedFromWindow();
-			PageController.SendDisappearing();
+			PageController?.SendDisappearing();
 		}
 
 		protected virtual void OnElementChanged(VisualElement oldElement, VisualElement newElement)
@@ -304,6 +329,8 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 				UpdateBackgroundImage(Element);
 			else if (e.PropertyName == VisualElement.BackgroundColorProperty.PropertyName)
 				UpdateBackgroundColor(Element);
+			else if (e.PropertyName == VisualElement.FlowDirectionProperty.PropertyName)
+				UpdateFlowDirection();
 		}
 
 		void MasterDetailPageAppearing(object sender, EventArgs e)
@@ -352,13 +379,29 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 		{
 			string backgroundImage = view.BackgroundImage;
 			if (!string.IsNullOrEmpty(backgroundImage))
-				this.SetBackground(Context.Resources.GetDrawable(backgroundImage));
+				this.SetBackground(Context.GetDrawable(backgroundImage));
+			else
+				this.SetBackground(null);
 		}
 
 		void UpdateDetail()
 		{
-			Context.HideKeyboard(this);
-			_detailLayout.ChildView = Element.Detail;
+			if (_detailLayout.ChildView == null)
+				Update();
+			else
+				new Handler(Looper.MainLooper).Post(() => Update());
+
+			void Update()
+			{
+				Context.HideKeyboard(this);
+				_detailLayout.ChildView = Element.Detail;
+			}
+		}
+
+		void UpdateFlowDirection()
+		{
+			this.UpdateFlowDirection(Element);
+			_detailLayout.UpdateFlowDirection();
 		}
 
 		void UpdateIsPresented()
@@ -371,16 +414,26 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 
 		void UpdateMaster()
 		{
-			Android.MasterDetailContainer masterContainer = _masterLayout;
-			if (masterContainer == null)
-				return;
 
-			if (masterContainer.ChildView != null)
-				masterContainer.ChildView.PropertyChanged -= HandleMasterPropertyChanged;
+			if (_masterLayout.ChildView == null)
+				new Handler(Looper.MainLooper).Post(() => Update());
+			else
+				Update();
 
-			masterContainer.ChildView = Element.Master;
-			if (Element.Master != null)
-				Element.Master.PropertyChanged += HandleMasterPropertyChanged;
+			void Update()
+			{
+				Android.MasterDetailContainer masterContainer = _masterLayout;
+				if (masterContainer == null)
+					return;
+
+				if (masterContainer.ChildView != null)
+					masterContainer.ChildView.PropertyChanged -= HandleMasterPropertyChanged;
+
+				masterContainer.ChildView = Element.Master;
+				if (Element.Master != null)
+					Element.Master.PropertyChanged += HandleMasterPropertyChanged;
+			}
+
 		}
 
 		void UpdateSplitViewLayout()

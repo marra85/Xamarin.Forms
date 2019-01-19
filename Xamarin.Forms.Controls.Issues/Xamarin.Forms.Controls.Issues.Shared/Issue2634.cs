@@ -4,7 +4,7 @@ using Xamarin.Forms;
 using Xamarin.Forms.CustomAttributes;
 using Xamarin.Forms.Internals;
 
-namespace Xamarin.Forms.Controls
+namespace Xamarin.Forms.Controls.Issues
 {
 	[Preserve (AllMembers=true)]
 	[Issue (IssueTracker.Github, 2634, "Keyboard causes view to scroll incorrectly", PlatformAffected.iOS)]
@@ -23,7 +23,7 @@ namespace Xamarin.Forms.Controls
 			{
 				var bvBackground = new Frame {
 					Content = new Label { Text = "" },
-					OutlineColor = Color.FromRgb (0x06, 0x68, 0xCF),
+					BorderColor = Color.FromRgb (0x06, 0x68, 0xCF),
 					BackgroundColor = Color.FromRgba (0f, 0f, 0f, 0.4f),
 					HasShadow = true
 				};

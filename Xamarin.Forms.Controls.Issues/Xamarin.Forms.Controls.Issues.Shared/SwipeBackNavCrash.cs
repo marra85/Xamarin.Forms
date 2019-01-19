@@ -6,6 +6,7 @@ using Xamarin.Forms.CustomAttributes;
 using Xamarin.Forms.Internals;
 
 #if UITEST
+using Xamarin.Forms.Core.UITests;
 using NUnit.Framework;
 using Xamarin.UITest;
 using Xamarin.UITest.iOS;
@@ -16,6 +17,10 @@ namespace Xamarin.Forms.Controls.Issues
 {
 	[Preserve (AllMembers = true)]
 	[Issue (IssueTracker.None, 0, "Swipe back nav crash", PlatformAffected.iOS)]
+#if UITEST
+	[NUnit.Framework.Category(UITestCategories.Navigation)]
+	[NUnit.Framework.Category(UITestCategories.UwpIgnore)]
+#endif
 	public class SwipeBackNavCrash : TestNavigationPage
 	{
 		protected override void Init ()
@@ -48,7 +53,7 @@ namespace Xamarin.Forms.Controls.Issues
 			RunningApp.WaitForElement (q => q.Marked ("Swipe lightly left and right to crash this page"));
 			System.Threading.Thread.Sleep (3);
 
-			var mainBounds = RunningApp.Query (q => q.Raw ("* index:0")) [0].Rect;
+			var mainBounds = RunningApp.RootViewRect();
 
 			Xamarin.Forms.Core.UITests.Gestures.Pan (RunningApp, new Xamarin.Forms.Core.UITests.Drag (mainBounds, 0, 125, 75, 125, Xamarin.Forms.Core.UITests.Drag.Direction.LeftToRight));
 			System.Threading.Thread.Sleep (3);

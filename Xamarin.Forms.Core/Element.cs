@@ -4,18 +4,30 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Xml;
 using Xamarin.Forms.Internals;
 
 namespace Xamarin.Forms
 {
-	public abstract class Element : BindableObject, IElement, INameScope, IElementController
+	public abstract partial class Element : BindableObject, IElement, INameScope, IElementController
 	{
+
+		public static readonly BindableProperty MenuProperty = BindableProperty.CreateAttached(nameof(Menu), typeof(Menu), typeof(Element), null);
+
+		public static Menu GetMenu(BindableObject bindable)
+		{
+			return (Menu)bindable.GetValue(MenuProperty);
+		}
+
+		public static void SetMenu(BindableObject bindable, Menu menu)
+		{
+			bindable.SetValue(MenuProperty, menu);
+		}
+
 		internal static readonly ReadOnlyCollection<Element> EmptyChildren = new ReadOnlyCollection<Element>(new Element[0]);
 
-		public static readonly BindableProperty ClassIdProperty = BindableProperty.Create("ClassId", typeof(string), typeof(View), null);
+		public static readonly BindableProperty AutomationIdProperty = BindableProperty.Create(nameof(AutomationId), typeof(string), typeof(Element), null);
 
-		string _automationId;
+		public static readonly BindableProperty ClassIdProperty = BindableProperty.Create(nameof(ClassId), typeof(string), typeof(Element), null);
 
 		IList<BindableObject> _bindableResources;
 
@@ -31,18 +43,17 @@ namespace Xamarin.Forms
 
 		Element _parentOverride;
 
-		IPlatform _platform;
-
 		string _styleId;
 
 		public string AutomationId
 		{
-			get { return _automationId; }
+			get { return (string)GetValue(AutomationIdProperty); }
 			set
 			{
-				if (_automationId != null)
-					throw new InvalidOperationException("AutomationId may only be set one time");
-				_automationId = value;
+				if (AutomationId != null)
+					throw new InvalidOperationException($"{nameof(AutomationId)} may only be set one time.");
+
+				SetValue(AutomationIdProperty, value);
 			}
 		}
 
@@ -77,6 +88,7 @@ namespace Xamarin.Forms
 		}
 
 		[Obsolete("ParentView is obsolete as of version 2.1.0. Please use Parent instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public VisualElement ParentView
 		{
 			get
@@ -134,31 +146,6 @@ namespace Xamarin.Forms
 			}
 		}
 
-		[EditorBrowsable(EditorBrowsableState.Never)]
-		public IPlatform Platform
-		{
-			get
-			{
-				if (_platform == null && RealParent != null)
-					return RealParent.Platform;
-				return _platform;
-			}
-			set
-			{
-				if (_platform == value)
-					return;
-				_platform = value;
-				if (PlatformSet != null)
-					PlatformSet(this, EventArgs.Empty);
-				foreach (Element descendant in Descendants())
-				{
-					descendant._platform = _platform;
-					if (descendant.PlatformSet != null)
-						descendant.PlatformSet(this, EventArgs.Empty);
-				}
-			}
-		}
-
 		// you're not my real dad
 		[EditorBrowsable(EditorBrowsableState.Never)]
 		public Element RealParent { get; private set; }
@@ -204,13 +191,6 @@ namespace Xamarin.Forms
 				}
 
 				OnParentSet();
-
-				if (RealParent != null)
-				{
-					IPlatform platform = RealParent.Platform;
-					if (platform != null)
-						Platform = platform;
-				}
 
 				OnPropertyChanged();
 			}
@@ -272,9 +252,9 @@ namespace Xamarin.Forms
 			return false;
 		}
 
-		object INameScope.FindByName(string name)
+		public object FindByName(string name)
 		{
-			INameScope namescope = GetNameScope();
+			var namescope = GetNameScope();
 			if (namescope == null)
 				throw new InvalidOperationException("this element is not in a namescope");
 			return namescope.FindByName(name);
@@ -282,27 +262,10 @@ namespace Xamarin.Forms
 
 		void INameScope.RegisterName(string name, object scopedElement)
 		{
-			INameScope namescope = GetNameScope();
+			var namescope = GetNameScope();
 			if (namescope == null)
 				throw new InvalidOperationException("this element is not in a namescope");
 			namescope.RegisterName(name, scopedElement);
-		}
-
-		[Obsolete]
-		void INameScope.RegisterName(string name, object scopedElement, IXmlLineInfo xmlLineInfo)
-		{
-			INameScope namescope = GetNameScope();
-			if (namescope == null)
-				throw new InvalidOperationException("this element is not in a namescope");
-			namescope.RegisterName(name, scopedElement, xmlLineInfo);
-		}
-
-		void INameScope.UnregisterName(string name)
-		{
-			INameScope namescope = GetNameScope();
-			if (namescope == null)
-				throw new InvalidOperationException("this element is not in a namescope");
-			namescope.UnregisterName(name);
 		}
 
 		public event EventHandler<ElementEventArgs> ChildAdded;
@@ -325,21 +288,10 @@ namespace Xamarin.Forms
 
 		protected override void OnBindingContextChanged()
 		{
-			var gotBindingContext = false;
-			object bc = null;
-
-			for (var index = 0; index < LogicalChildrenInternal.Count; index++)
+			this.PropagateBindingContext(LogicalChildrenInternal, (child, bc) =>
 			{
-				Element child = LogicalChildrenInternal[index];
-
-				if (!gotBindingContext)
-				{
-					bc = BindingContext;
-					gotBindingContext = true;
-				}
-
-				SetChildInheritedBindingContext(child, bc);
-			}
+				SetChildInheritedBindingContext((Element)child, bc);
+			});
 
 			if (_bindableResources != null)
 				foreach (BindableObject item in _bindableResources)
@@ -353,13 +305,10 @@ namespace Xamarin.Forms
 		protected virtual void OnChildAdded(Element child)
 		{
 			child.Parent = this;
-			if (Platform != null)
-				child.Platform = Platform;
 
-			child.ApplyBindings();
+			child.ApplyBindings(skipBindingContext: false, fromBindingContextChanged:true);
 
-			if (ChildAdded != null)
-				ChildAdded(this, new ElementEventArgs(child));
+			ChildAdded?.Invoke(this, new ElementEventArgs(child));
 
 			OnDescendantAdded(child);
 			foreach (Element element in child.Descendants())
@@ -370,8 +319,7 @@ namespace Xamarin.Forms
 		{
 			child.Parent = null;
 
-			if (ChildRemoved != null)
-				ChildRemoved(child, new ElementEventArgs(child));
+			ChildRemoved?.Invoke(child, new ElementEventArgs(child));
 
 			OnDescendantRemoved(child);
 			foreach (Element element in child.Descendants())
@@ -381,6 +329,8 @@ namespace Xamarin.Forms
 		protected virtual void OnParentSet()
 		{
 			ParentSet?.Invoke(this, EventArgs.Empty);
+			ApplyStyleSheetsOnParentSet();
+			(this as IPropertyPropagationController)?.PropagatePropertyChanged(null);
 		}
 
 		protected override void OnPropertyChanged([CallerMemberName] string propertyName = null)
@@ -415,9 +365,12 @@ namespace Xamarin.Forms
 			}
 		}
 
-		internal void OnParentResourcesChanged(object sender, ResourcesChangedEventArgs e)
+		internal virtual void OnParentResourcesChanged(object sender, ResourcesChangedEventArgs e)
 		{
-			OnParentResourcesChanged(e.Values);
+			if (e == ResourcesChangedEventArgs.StyleSheets)
+				ApplyStyleSheetsOnParentSet();
+			else
+				OnParentResourcesChanged(e.Values);
 		}
 
 		internal virtual void OnParentResourcesChanged(IEnumerable<KeyValuePair<string, object>> values)
@@ -434,7 +387,7 @@ namespace Xamarin.Forms
 			base.OnRemoveDynamicResource(property);
 		}
 
-		internal void OnResourcesChanged(object sender, ResourcesChangedEventArgs e)
+		internal virtual void OnResourcesChanged(object sender, ResourcesChangedEventArgs e)
 		{
 			OnResourcesChanged(e.Values);
 		}
@@ -490,8 +443,42 @@ namespace Xamarin.Forms
 
 		internal event EventHandler ParentSet;
 
-		[EditorBrowsable(EditorBrowsableState.Never)]
-		public event EventHandler PlatformSet;
+		internal static void SetFlowDirectionFromParent(Element child)
+		{
+			IFlowDirectionController controller = child as IFlowDirectionController;
+			if (controller == null)
+				return;
+
+			if (controller.EffectiveFlowDirection.IsImplicit())
+			{
+				var parentView = child.Parent as IFlowDirectionController;
+				if (parentView == null)
+					return;
+
+				var flowDirection = parentView.EffectiveFlowDirection.ToFlowDirection();
+
+				if (flowDirection != controller.EffectiveFlowDirection.ToFlowDirection())
+				{
+					controller.EffectiveFlowDirection = flowDirection.ToEffectiveFlowDirection();
+				}
+			}
+		}
+
+		internal static void SetVisualfromParent(Element child)
+		{
+			IVisualController controller = child as IVisualController;
+			if (controller == null)
+				return;
+
+			if (controller.Visual != VisualMarker.MatchParent)
+			{
+				controller.EffectiveVisual = controller.Visual;
+				return;
+			}
+
+			if (child.Parent is IVisualController parentView)
+				controller.EffectiveVisual = parentView.EffectiveVisual;
+		}
 
 		internal virtual void SetChildInheritedBindingContext(Element child, object context)
 		{
@@ -589,34 +576,27 @@ namespace Xamarin.Forms
 			}
 		}
 
-		INameScope GetNameScope()
+		internal INameScope GetNameScope()
 		{
-			INameScope namescope = NameScope.GetNameScope(this);
-			Element p = RealParent;
-			while (namescope == null && p != null)
-			{
-				namescope = NameScope.GetNameScope(p);
-				p = p.RealParent;
-			}
-			return namescope;
+			var element = this;
+			do {
+				var ns = NameScope.GetNameScope(element);
+				if (ns != null)
+					return ns;
+			} while ((element = element.RealParent) != null);
+			return null;
 		}
 
 		void OnDescendantAdded(Element child)
 		{
-			if (DescendantAdded != null)
-				DescendantAdded(this, new ElementEventArgs(child));
-
-			if (RealParent != null)
-				RealParent.OnDescendantAdded(child);
+			DescendantAdded?.Invoke(this, new ElementEventArgs(child));
+			RealParent?.OnDescendantAdded(child);
 		}
 
 		void OnDescendantRemoved(Element child)
 		{
-			if (DescendantRemoved != null)
-				DescendantRemoved(this, new ElementEventArgs(child));
-
-			if (RealParent != null)
-				RealParent.OnDescendantRemoved(child);
+			DescendantRemoved?.Invoke(this, new ElementEventArgs(child));
+			RealParent?.OnDescendantRemoved(child);
 		}
 
 		void OnResourceChanged(BindableProperty property, object value)

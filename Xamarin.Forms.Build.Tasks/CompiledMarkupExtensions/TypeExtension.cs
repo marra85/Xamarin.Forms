@@ -1,10 +1,14 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Xml;
+
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+
 using Xamarin.Forms.Xaml;
-using System.Xml;
+
+using static Mono.Cecil.Cil.Instruction;
+using static Mono.Cecil.Cil.OpCodes;
 
 namespace Xamarin.Forms.Build.Tasks
 {
@@ -12,15 +16,13 @@ namespace Xamarin.Forms.Build.Tasks
 	{
 		public IEnumerable<Instruction> ProvideValue(IElementNode node, ModuleDefinition module, ILContext context, out TypeReference memberRef)
 		{
-			memberRef = module.ImportReference(typeof(Type));
-			INode typeNameNode;
-
+			memberRef = module.ImportReference(("mscorlib", "System", "Type"));
 			var name = new XmlName("", "TypeName");
-			if (!node.Properties.TryGetValue(name, out typeNameNode) && node.CollectionItems.Any())
+
+			if (!node.Properties.TryGetValue(name, out INode typeNameNode) && node.CollectionItems.Any())
 				typeNameNode = node.CollectionItems[0];
 
-			var valueNode = typeNameNode as ValueNode;
-			if (valueNode == null)
+			if (!(typeNameNode is ValueNode valueNode))
 				throw new XamlParseException("TypeName isn't set.", node as XmlLineInfo);
 
 			if (!node.Properties.ContainsKey(name)) {
@@ -29,15 +31,15 @@ namespace Xamarin.Forms.Build.Tasks
 			}
 
 			var typeref = module.ImportReference(XmlTypeExtensions.GetTypeReference(valueNode.Value as string, module, node as BaseNode));
-			if (typeref == null)
-				throw new XamlParseException($"Can't resolve type `{valueNode.Value}'.", node as IXmlLineInfo);
 
-			context.TypeExtensions[node] = typeref;
+			context.TypeExtensions[node] = typeref ?? throw new XamlParseException($"Can't resolve type `{valueNode.Value}'.", node as IXmlLineInfo);
 
-			var getTypeFromHandle = module.ImportReference(typeof(Type).GetMethod("GetTypeFromHandle", new[] { typeof(RuntimeTypeHandle) }));
 			return new List<Instruction> {
-				Instruction.Create(OpCodes.Ldtoken, module.ImportReference(typeref)),
-				Instruction.Create(OpCodes.Call, module.ImportReference(getTypeFromHandle))
+				Create(Ldtoken, module.ImportReference(typeref)),
+				Create(Call, module.ImportMethodReference(("mscorlib", "System", "Type"),
+														  methodName: "GetTypeFromHandle",
+														  parameterTypes: new[] { ("mscorlib", "System", "RuntimeTypeHandle") },
+														  isStatic: true)),
 			};
 		}
 	}

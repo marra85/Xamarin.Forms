@@ -3,13 +3,17 @@ using System.ComponentModel;
 using AppKit;
 using Foundation;
 using Xamarin.Forms.Internals;
+using System.Threading.Tasks;
+
+using WebKit;
 
 namespace Xamarin.Forms.Platform.MacOS
 {
-	public class WebViewRenderer : ViewRenderer<WebView, WebKit.WebView>, IWebViewDelegate
+	public class WebViewRenderer : ViewRenderer<WebView, WebKit.WebView>, IWebViewDelegate, WebKit.IWebPolicyDelegate
 	{
 		bool _disposed;
 		bool _ignoreSourceChanges;
+		bool _sentNavigating;
 		WebNavigationEvent _lastBackForwardEvent;
 		WebNavigationEvent _lastEvent;
 
@@ -25,6 +29,46 @@ namespace Xamarin.Forms.Platform.MacOS
 			Control.MainFrame.LoadRequest(new NSUrlRequest(new NSUrl(url)));
 		}
 
+		[Export("webView:decidePolicyForNavigationAction:request:frame:decisionListener:")]
+		public void DecidePolicyForNavigation(WebKit.WebView webView, NSDictionary actionInformation, NSUrlRequest request, WebKit.WebFrame frame, WebKit.IWebPolicyDecisionListener decisionToken)
+		{
+			var navEvent = WebNavigationEvent.NewPage;
+			if(actionInformation.ContainsKey(WebPolicyDelegate.WebActionNavigationTypeKey))
+			{
+				var navigationType = ((WebNavigationType)((NSNumber)actionInformation[WebPolicyDelegate.WebActionNavigationTypeKey]).Int32Value);
+				switch (navigationType)
+				{
+					case WebNavigationType.BackForward:
+						navEvent = _lastBackForwardEvent;
+						break;
+					case WebNavigationType.Reload:
+						navEvent = WebNavigationEvent.Refresh;
+						break;
+					case WebNavigationType.FormResubmitted:
+					case WebNavigationType.FormSubmitted:
+					case WebNavigationType.LinkClicked:
+					case WebNavigationType.Other:
+						navEvent = WebNavigationEvent.NewPage;
+						break;
+				}
+			}
+			
+			if (!_sentNavigating)
+			{
+				_lastEvent = navEvent;
+				_sentNavigating = true;
+				var lastUrl = request.Url.ToString();
+				var args = new WebNavigatingEventArgs(navEvent, new UrlWebViewSource { Url = lastUrl }, lastUrl);
+
+				Element.SendNavigating(args);
+				UpdateCanGoBackForward();
+				if (!args.Cancel)
+				{
+					decisionToken.Use();
+				}
+			}
+		}
+
 		protected override void OnElementChanged(ElementChangedEventArgs<WebView> e)
 		{
 			base.OnElementChanged(e);
@@ -38,13 +82,15 @@ namespace Xamarin.Forms.Platform.MacOS
 						AutoresizingMask = NSViewResizingMask.WidthSizable,
 						AutoresizesSubviews = true
 					});
-					Control.OnFinishedLoading += OnNSWebViewFinishedLoad;
-					Control.OnFailedLoading += OnNSWebViewFailedLoadWithError;
-
+				
 					Element.EvalRequested += OnEvalRequested;
+					Element.EvaluateJavaScriptRequested += OnEvaluateJavaScriptRequested;
 					Element.GoBackRequested += OnGoBackRequested;
 					Element.GoForwardRequested += OnGoForwardRequested;
+					Element.ReloadRequested += OnReloadRequested;
 
+					Control.FrameLoadDelegate = new FormsWebFrameDelegate(this);
+					Control.PolicyDelegate = this;
 					Layer.BackgroundColor = NSColor.Clear.CGColor;
 				}
 			}
@@ -65,11 +111,17 @@ namespace Xamarin.Forms.Platform.MacOS
 			if (disposing && !_disposed)
 			{
 				_disposed = true;
-				Control.OnFinishedLoading -= OnNSWebViewFinishedLoad;
-				Control.OnFailedLoading -= OnNSWebViewFailedLoadWithError;
 				Element.EvalRequested -= OnEvalRequested;
+				Element.EvaluateJavaScriptRequested -= OnEvaluateJavaScriptRequested;
 				Element.GoBackRequested -= OnGoBackRequested;
 				Element.GoForwardRequested -= OnGoForwardRequested;
+				Element.ReloadRequested -= OnReloadRequested;
+
+				if (Control?.FrameLoadDelegate is FormsWebFrameDelegate frameDelegate)
+					frameDelegate.Renderer = null;
+
+				Control.FrameLoadDelegate = null;
+				Control.PolicyDelegate = null;
 			}
 			base.Dispose(disposing);
 		}
@@ -97,6 +149,18 @@ namespace Xamarin.Forms.Platform.MacOS
 			Control?.StringByEvaluatingJavaScriptFromString(eventArg?.Script);
 		}
 
+		async Task<string> OnEvaluateJavaScriptRequested(string script)
+		{
+			var tcr = new TaskCompletionSource<string>();
+			var task = tcr.Task;
+
+			Device.BeginInvokeOnMainThread(() => {
+				tcr.SetResult(Control?.StringByEvaluatingJavaScriptFromString(script));
+			});
+
+			return await task.ConfigureAwait(false);
+		}
+
 		void OnGoBackRequested(object sender, EventArgs eventArgs)
 		{
 			if (Control.CanGoBack())
@@ -119,29 +183,49 @@ namespace Xamarin.Forms.Platform.MacOS
 			UpdateCanGoBackForward();
 		}
 
-		void OnNSWebViewFailedLoadWithError(object sender, WebKit.WebResourceErrorEventArgs e)
+		void OnReloadRequested(object sender, EventArgs eventArgs)
 		{
-			_lastEvent = _lastBackForwardEvent;
-			Element?.SendNavigated(new WebNavigatedEventArgs(_lastEvent, new UrlWebViewSource { Url = Control.MainFrameUrl },
-				Control.MainFrameUrl, WebNavigationResult.Failure));
-
-			UpdateCanGoBackForward();
+			Control.Reload(this);
 		}
 
-		void OnNSWebViewFinishedLoad(object sender, WebKit.WebResourceCompletedEventArgs e)
+		internal class FormsWebFrameDelegate : WebKit.WebFrameLoadDelegate
 		{
-			if (Control.IsLoading)
-				return;
+			internal WebViewRenderer Renderer { private get; set; }
+			internal FormsWebFrameDelegate(WebViewRenderer renderer)
+			{
+				Renderer = renderer;
+			}
 
-			_ignoreSourceChanges = true;
-			Element?.SetValueFromRenderer(WebView.SourceProperty, new UrlWebViewSource { Url = Control.MainFrameUrl });
-			_ignoreSourceChanges = false;
+			public override void FinishedLoad(WebKit.WebView sender, WebFrame forFrame)
+			{
+				Renderer._sentNavigating = false;
+				
+				if (Renderer.Control.IsLoading)
+					return;
 
-			_lastEvent = _lastBackForwardEvent;
-			Element?.SendNavigated(new WebNavigatedEventArgs(_lastEvent, Element?.Source, Control.MainFrameUrl,
-				WebNavigationResult.Success));
+				if (Renderer.Control.MainFrameUrl == $"file://{NSBundle.MainBundle.BundlePath}/")
+					return;
 
-			UpdateCanGoBackForward();
+				Renderer._ignoreSourceChanges = true;
+				Renderer.Element?.SetValueFromRenderer(WebView.SourceProperty, new UrlWebViewSource { Url = Renderer.Control.MainFrameUrl });
+				Renderer._ignoreSourceChanges = false;
+
+				Renderer._lastEvent = Renderer._lastBackForwardEvent;
+				Renderer.Element?.SendNavigated(new WebNavigatedEventArgs(Renderer._lastEvent, Renderer.Element?.Source, Renderer.Control.MainFrameUrl, WebNavigationResult.Success));
+
+				Renderer.UpdateCanGoBackForward();
+			}
+
+			public override void FailedLoadWithError(WebKit.WebView sender, NSError error, WebFrame forFrame)
+			{
+				Renderer._sentNavigating = false;
+				
+				Renderer._lastEvent = Renderer._lastBackForwardEvent;
+
+				Renderer.Element?.SendNavigated(new WebNavigatedEventArgs(Renderer._lastEvent, new UrlWebViewSource { Url = Renderer.Control.MainFrameUrl }, Renderer.Control.MainFrameUrl, WebNavigationResult.Failure));
+
+				Renderer.UpdateCanGoBackForward();
+			}
 		}
 	}
 }

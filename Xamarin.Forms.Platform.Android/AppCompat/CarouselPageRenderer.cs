@@ -1,4 +1,5 @@
-﻿using System.Collections.Specialized;
+﻿using System;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using Android.Content;
 using Android.Support.V4.View;
@@ -10,7 +11,15 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 	{
 		bool _disposed;
 		FormsViewPager _viewPager;
+		Page _previousPage;
 
+		public CarouselPageRenderer(Context context) : base(context)
+		{
+			AutoPackage = false;
+		}
+
+		[Obsolete("This constructor is obsolete as of version 2.5. Please use CarouselPageRenderer(Context) instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public CarouselPageRenderer()
 		{
 			AutoPackage = false;
@@ -29,6 +38,12 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 		void ViewPager.IOnPageChangeListener.OnPageSelected(int position)
 		{
 			Element.CurrentPage = Element.Children[position];
+			if (_previousPage != Element.CurrentPage)
+			{
+				_previousPage?.SendDisappearing();
+				_previousPage = Element.CurrentPage;
+			}
+			Element.CurrentPage.SendAppearing();
 		}
 
 		protected override void Dispose(bool disposing)
@@ -55,6 +70,8 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 					_viewPager = null;
 				}
 
+				_previousPage = null;
+
 				if (Element != null)
 					PageController.InternalChildren.CollectionChanged -= OnChildrenCollectionChanged;
 			}
@@ -65,12 +82,18 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 		protected override void OnAttachedToWindow()
 		{
 			base.OnAttachedToWindow();
+			if (Parent is PageContainer pageContainer && (pageContainer.IsInFragment || pageContainer.Visibility == ViewStates.Gone))
+				return;
 			PageController.SendAppearing();
+			Element.CurrentPage?.SendAppearing();
 		}
 
 		protected override void OnDetachedFromWindow()
 		{
 			base.OnDetachedFromWindow();
+			if (Parent is PageContainer pageContainer && pageContainer.IsInFragment)
+				return;
+			Element.CurrentPage?.SendDisappearing();
 			PageController.SendDisappearing();
 		}
 
@@ -94,13 +117,16 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 						LayoutParameters = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent),
 						Adapter = new FormsFragmentPagerAdapter<ContentPage>(e.NewElement, activity.SupportFragmentManager) { CountOverride = e.NewElement.Children.Count }
 					};
-				pager.Id = FormsAppCompatActivity.GetUniqueId();
+				pager.Id = Platform.GenerateViewId();
 				pager.AddOnPageChangeListener(this);
 
 				ViewGroup.AddView(pager);
 				CarouselPage carouselPage = e.NewElement;
 				if (carouselPage.CurrentPage != null)
+				{
+					_previousPage = carouselPage.CurrentPage;
 					ScrollToCurrentPage();
+				}
 
 				((IPageController)carouselPage).InternalChildren.CollectionChanged += OnChildrenCollectionChanged;
 			}

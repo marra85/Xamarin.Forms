@@ -1,4 +1,5 @@
 using System;
+using Android.Content;
 using Android.OS;
 using Android.Runtime;
 using Android.Views;
@@ -10,10 +11,9 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 {
 	internal class FragmentContainer : Fragment
 	{
-		readonly WeakReference _pageReference;
+		readonly WeakReference _pageRenderer;
 
 		Action<PageContainer> _onCreateCallback;
-		bool? _isVisible;
 		PageContainer _pageContainer;
 		IVisualElementRenderer _visualElementRenderer;
 
@@ -23,32 +23,16 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 
 		public FragmentContainer(Page page) : this()
 		{
-			_pageReference = new WeakReference(page);
+			_pageRenderer = new WeakReference(page);
 		}
 
 		protected FragmentContainer(IntPtr javaReference, JniHandleOwnership transfer) : base(javaReference, transfer)
 		{
 		}
 
-		public Page Page => (Page)_pageReference?.Target;
+		public virtual Page Page => (Page)_pageRenderer?.Target;
 
 		IPageController PageController => Page as IPageController;
-
-		public override bool UserVisibleHint
-		{
-			get { return base.UserVisibleHint; }
-			set
-			{
-				base.UserVisibleHint = value;
-				if (_isVisible == value)
-					return;
-				_isVisible = value;
-				if (_isVisible.Value)
-					PageController?.SendAppearing();
-				else
-					PageController?.SendDisappearing();
-			}
-		}
 
 		public static Fragment CreateInstance(Page page)
 		{
@@ -60,14 +44,19 @@ namespace Xamarin.Forms.Platform.Android.AppCompat
 			_onCreateCallback = callback;
 		}
 
+		protected virtual PageContainer CreatePageContainer (Context context, IVisualElementRenderer child, bool inFragment)
+		{
+			return new PageContainer(context, child, inFragment);
+		}
+
 		public override AView OnCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
 		{
 			if (Page != null)
 			{
-				_visualElementRenderer = Android.Platform.CreateRenderer(Page, ChildFragmentManager);
+				_visualElementRenderer = Android.Platform.CreateRenderer(Page, ChildFragmentManager, inflater.Context);
 				Android.Platform.SetRenderer(Page, _visualElementRenderer);
 
-				_pageContainer = new PageContainer(Forms.Context, _visualElementRenderer, true);
+				_pageContainer = CreatePageContainer(inflater.Context, _visualElementRenderer, true);
 
 				_onCreateCallback?.Invoke(_pageContainer);
 

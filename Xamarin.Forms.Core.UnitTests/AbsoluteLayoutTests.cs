@@ -7,12 +7,19 @@ namespace Xamarin.Forms.Core.UnitTests
 	[TestFixture]
 	public class AbsoluteLayoutTests : BaseTestFixture
 	{
+		[SetUp]
+		public override void Setup()
+		{
+			base.Setup();
+			var mockDeviceInfo = new TestDeviceInfo();
+			Device.Info = mockDeviceInfo;
+		}
+
 
 		[Test]
 		public void Constructor ()
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -27,7 +34,6 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void AbsolutePositionAndSize ()
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -44,7 +50,6 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void AbsolutePositionRelativeSize ()
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -68,7 +73,6 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void RelativePositionAbsoluteSize (double width, double height, double relX, double relY)
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -90,7 +94,6 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void RelativePositionRelativeSize ([Values (0.0, 0.2, 0.5, 1.0)] double relX, [Values (0.0, 0.2, 0.5, 1.0)] double relY, [Values (0.0, 0.2, 0.5, 1.0)] double relHeight, [Values (0.0, 0.2, 0.5, 1.0)] double relWidth)
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -114,7 +117,6 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void SizeRequestWithNormalChild ()
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -133,7 +135,6 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void SizeRequestWithRelativePositionChild ()
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -152,12 +153,10 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void SizeRequestWithRelativeChild ()
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
 			var child = new View {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -174,12 +173,10 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void SizeRequestWithRelativeSizeChild ()
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
 			var child = new View {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -196,12 +193,10 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void MeasureInvalidatedFiresWhenFlagsChanged ()
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
 			var child = new View {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -219,12 +214,10 @@ namespace Xamarin.Forms.Core.UnitTests
 		public void MeasureInvalidatedFiresWhenBoundsChanged ()
 		{
 			var abs = new AbsoluteLayout {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
 			var child = new View {
-				Platform = new UnitPlatform (),
 				IsPlatformEnabled = true
 			};
 
@@ -238,9 +231,11 @@ namespace Xamarin.Forms.Core.UnitTests
 			Assert.True (fired);
 		}
 
-		[Test]
-		public void TestBoundsTypeConverter ()
+		[TestCase("en-US"), TestCase("tr-TR")]
+		public void TestBoundsTypeConverter (string culture)
 		{
+			System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo(culture);
+
 			var converter = new BoundsTypeConverter ();
 
 			Assert.IsTrue (converter.CanConvertFrom (typeof(string)));
@@ -249,17 +244,10 @@ namespace Xamarin.Forms.Core.UnitTests
 			Assert.AreEqual (new Rectangle (3, 4, AbsoluteLayout.AutoSize, AbsoluteLayout.AutoSize), converter.ConvertFromInvariantString ("3, 4, AutoSize, AutoSize"));
 			Assert.AreEqual (new Rectangle (3, 4, AbsoluteLayout.AutoSize, 30), converter.ConvertFromInvariantString ("3, 4, AutoSize, 30"));
 			Assert.AreEqual (new Rectangle (3, 4, 20, AbsoluteLayout.AutoSize), converter.ConvertFromInvariantString ("3, 4, 20, AutoSize"));
-		}
-
-		[Test]
-		public void TurkeyTestBoundsTypeConverter ()
-		{
-			var converter = new BoundsTypeConverter ();
 
 			var autoSize = "AutoSize";
-
-			Assert.AreEqual (new Rectangle (3.3, 4.4, AbsoluteLayout.AutoSize, AbsoluteLayout.AutoSize), converter.ConvertFromInvariantString ("3.3, 4.4, " + autoSize + ", AutoSize"));
-			Assert.AreEqual (new Rectangle (3.3, 4.4, 5.5, 6.6), converter.ConvertFromInvariantString ("3.3, 4.4, 5.5, 6.6"));
+			Assert.AreEqual(new Rectangle(3.3, 4.4, AbsoluteLayout.AutoSize, AbsoluteLayout.AutoSize), converter.ConvertFromInvariantString("3.3, 4.4, " + autoSize + ", AutoSize"));
+			Assert.AreEqual(new Rectangle(3.3, 4.4, 5.5, 6.6), converter.ConvertFromInvariantString("3.3, 4.4, 5.5, 6.6"));
 		}
 	}
 }

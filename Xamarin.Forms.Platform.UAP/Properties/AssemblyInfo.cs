@@ -1,13 +1,8 @@
 ﻿using System.Reflection;
-using System.Runtime.InteropServices;
 using Xamarin.Forms;
 using Xamarin.Forms.Platform.UWP;
 
-[assembly: AssemblyTitle("Xamarin.Forms.Platform.UAP")]
-[assembly: AssemblyDescription("")]
-[assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCulture("")]
-[assembly: ComVisible(false)]
+
 [assembly: Dependency(typeof(WindowsSerializer))]
 
 // Views
@@ -15,9 +10,11 @@ using Xamarin.Forms.Platform.UWP;
 [assembly: ExportRenderer(typeof(Layout), typeof(LayoutRenderer))]
 [assembly: ExportRenderer(typeof(BoxView), typeof(BoxViewRenderer))]
 [assembly: ExportRenderer(typeof(Image), typeof(ImageRenderer))]
+[assembly: ExportRenderer(typeof(ImageButton), typeof(ImageButtonRenderer))]
 [assembly: ExportRenderer(typeof(Label), typeof(LabelRenderer))]
 [assembly: ExportRenderer(typeof(Button), typeof(ButtonRenderer))]
 [assembly: ExportRenderer(typeof(ListView), typeof(ListViewRenderer))]
+[assembly: ExportRenderer(typeof(CollectionView), typeof(CollectionViewRenderer))]
 [assembly: ExportRenderer(typeof(ScrollView), typeof(ScrollViewRenderer))]
 [assembly: ExportRenderer(typeof(ProgressBar), typeof(ProgressBarRenderer))]
 [assembly: ExportRenderer(typeof(Slider), typeof(SliderRenderer))]
@@ -39,6 +36,7 @@ using Xamarin.Forms.Platform.UWP;
 [assembly: ExportImageSourceHandler(typeof(FileImageSource), typeof(FileImageSourceHandler))]
 [assembly: ExportImageSourceHandler(typeof(StreamImageSource), typeof(StreamImageSourceHandler))]
 [assembly: ExportImageSourceHandler(typeof(UriImageSource), typeof(UriImageSourceHandler))]
+[assembly: ExportImageSourceHandler(typeof(FontImageSource), typeof(FontImageSourceHandler))]
 
 // Pages
 
@@ -57,3 +55,6 @@ using Xamarin.Forms.Platform.UWP;
 [assembly: Dependency(typeof(WindowsResourcesProvider))]
 [assembly: ExportRenderer(typeof(SearchBar), typeof(SearchBarRenderer))]
 [assembly: ExportRenderer(typeof(TabbedPage), typeof(TabbedPageRenderer))]
+
+[assembly: AssemblyVersion("2.0.0.0")]
+[assembly: AssemblyFileVersion("2.0.0.0")]

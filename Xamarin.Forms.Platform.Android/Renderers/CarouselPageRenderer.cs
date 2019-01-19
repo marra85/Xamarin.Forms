@@ -1,4 +1,6 @@
+using System;
 using System.ComponentModel;
+using Android.Content;
 using Android.Support.V4.View;
 using Android.Views;
 
@@ -7,7 +9,15 @@ namespace Xamarin.Forms.Platform.Android
 	public class CarouselPageRenderer : VisualElementRenderer<CarouselPage>
 	{
 		ViewPager _viewPager;
+		Page _previousPage;
 
+		public CarouselPageRenderer(Context context) : base(context)
+		{
+			AutoPackage = false;
+		}
+
+		[Obsolete("This constructor is obsolete as of version 2.5. Please use CarouselPageRenderer(Context) instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public CarouselPageRenderer()
 		{
 			AutoPackage = false;
@@ -19,6 +29,8 @@ namespace Xamarin.Forms.Platform.Android
 		{
 			if (disposing && _viewPager != null)
 			{
+				_previousPage = null;
+
 				if (_viewPager.Adapter != null)
 					_viewPager.Adapter.Dispose();
 				_viewPager.Dispose();
@@ -36,12 +48,18 @@ namespace Xamarin.Forms.Platform.Android
 
 			adapter.UpdateCurrentItem();
 
+			if (Parent is PageContainer pageContainer && (pageContainer.IsInFragment || pageContainer.Visibility == ViewStates.Gone))
+				return;
 			PageController.SendAppearing();
+			Element.CurrentPage?.SendAppearing();
 		}
 
 		protected override void OnDetachedFromWindow()
 		{
 			base.OnDetachedFromWindow();
+			if (Parent is PageContainer pageContainer && pageContainer.IsInFragment)
+				return;
+			Element.CurrentPage?.SendDisappearing();
 			PageController.SendDisappearing();
 		}
 
@@ -58,9 +76,14 @@ namespace Xamarin.Forms.Platform.Android
 
 			_viewPager = new ViewPager(Context);
 
+
 			AddView(_viewPager);
 
 			_viewPager.OffscreenPageLimit = int.MaxValue;
+
+			if (Element.CurrentPage != null)
+				_previousPage = Element.CurrentPage;
+
 		}
 
 		protected override void OnElementPropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -97,6 +120,12 @@ namespace Xamarin.Forms.Platform.Android
 				return;
 
 			_viewPager.CurrentItem = index;
+			if (_previousPage != Element.CurrentPage)
+			{
+				_previousPage?.SendDisappearing();
+				_previousPage = Element.CurrentPage;
+			}
+			Element.CurrentPage.SendAppearing();
 		}
 	}
 }

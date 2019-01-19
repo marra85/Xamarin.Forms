@@ -15,6 +15,8 @@ namespace Xamarin.Forms.Controls
 
 		public AppearingGalleryPage ()
 		{
+			App.AppearingMessages.Clear();
+
 			var initalPage = new AppearingPage (1);
 			var initalPage2 = new AppearingPage (2);
 
@@ -96,6 +98,7 @@ namespace Xamarin.Forms.Controls
 					Children = {
 						new Label { Text = $"Hello Appearing {_theId} page" },
 						new Button { Text = "Push new Page", Command = new Command ( async () => { await Navigation.PushAsync( new AppearingPage(2)); }) },
+						new Button { Text = "Add new Page", Command = new Command ( () => { (Parent as CarouselPage).Children.Add( new AppearingPage(3)); }) },
 						new Button { Text = "Pop page", Command = new Command ( async () => { await Navigation.PopAsync(); }) },
 						new Button { Text = "Pop to root", Command = new Command ( async () => { await Navigation.PopToRootAsync(); }) },
 						new Button { Text = "Change Main Page", Command = new Command ( () => { 
@@ -109,7 +112,8 @@ namespace Xamarin.Forms.Controls
 			protected override void OnAppearing ()
 			{
 				base.OnAppearing ();
-				Device.StartTimer (new TimeSpan (200), () => {
+
+				Device.StartTimer (TimeSpan.FromMilliseconds(750), () => {
 					_listMessages.ItemsSource = App.AppearingMessages;
 					return false;
 				});

@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using Android.Content;
 using Android.Content.Res;
 using Android.Graphics;
 using Android.OS;
 using Android.Text;
+using Android.Text.Method;
 using Android.Util;
 using Android.Widget;
 using AView = Android.Views.View;
@@ -14,10 +17,17 @@ namespace Xamarin.Forms.Platform.Android
 	public class SearchBarRenderer : ViewRenderer<SearchBar, SearchView>, SearchView.IOnQueryTextListener
 	{
 		EditText _editText;
-		ColorStateList _hintTextColorDefault;
 		InputTypes _inputType;
-		ColorStateList _textColorDefault;
+		TextColorSwitcher _textColorSwitcher;
+		TextColorSwitcher _hintColorSwitcher;
 
+		public SearchBarRenderer(Context context) : base(context)
+		{
+			AutoPackage = false;
+		}
+
+		[Obsolete("This constructor is obsolete as of version 2.5. Please use SearchBarRenderer(Context) instead.")]
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public SearchBarRenderer()
 		{
 			AutoPackage = false;
@@ -42,11 +52,27 @@ namespace Xamarin.Forms.Platform.Android
 			return new SearchView(Context);
 		}
 
+		protected override void OnFocusChangeRequested(object sender, VisualElement.FocusRequestArgs e)
+		{
+			if (!e.Focus)
+			{
+				Control.HideKeyboard();
+			}
+
+			base.OnFocusChangeRequested(sender, e);
+
+			if (e.Focus)
+			{
+				// Post this to the main looper queue so it doesn't happen until the other focus stuff has resolved
+				// Otherwise, ShowKeyboard will be called before this control is truly focused, and we will potentially
+				// be displaying the wrong keyboard
+				Control?.PostShowKeyboard();
+			}
+		}
+
 		protected override void OnElementChanged(ElementChangedEventArgs<SearchBar> e)
 		{
 			base.OnElementChanged(e);
-
-			HandleKeyboardOnFocus = true;
 
 			SearchView searchView = Control;
 
@@ -56,18 +82,19 @@ namespace Xamarin.Forms.Platform.Android
 				searchView.SetIconifiedByDefault(false);
 				searchView.Iconified = false;
 				SetNativeControl(searchView);
-			}
+				_editText = _editText ?? Control.GetChildrenOfType<EditText>().FirstOrDefault();
 
-			BuildVersionCodes androidVersion = Build.VERSION.SdkInt;
-			if (androidVersion >= BuildVersionCodes.JellyBean)
-				_inputType = searchView.InputType;
-			else
-			{
-				// < API 16, Cannot get the default InputType for a SearchView
-				_inputType = InputTypes.ClassText | InputTypes.TextFlagAutoComplete | InputTypes.TextFlagNoSuggestions;
+				if (_editText != null)
+				{
+					var useLegacyColorManagement = e.NewElement.UseLegacyColorManagement();
+					_textColorSwitcher = new TextColorSwitcher(_editText.TextColors, useLegacyColorManagement);
+					_hintColorSwitcher = new TextColorSwitcher(_editText.HintTextColors, useLegacyColorManagement);
+				}
+
 			}
 
 			ClearFocus(searchView);
+			UpdateInputType();
 			UpdatePlaceholder();
 			UpdateText();
 			UpdateEnabled();
@@ -76,6 +103,7 @@ namespace Xamarin.Forms.Platform.Android
 			UpdateAlignment();
 			UpdateTextColor();
 			UpdatePlaceholderColor();
+			UpdateMaxLength();
 
 			if (e.OldElement == null)
 			{
@@ -108,6 +136,14 @@ namespace Xamarin.Forms.Platform.Android
 				UpdateTextColor();
 			else if (e.PropertyName == SearchBar.PlaceholderColorProperty.PropertyName)
 				UpdatePlaceholderColor();
+			else if (e.PropertyName == VisualElement.FlowDirectionProperty.PropertyName)
+				UpdateAlignment();
+			else if (e.PropertyName == InputView.MaxLengthProperty.PropertyName)
+				UpdateMaxLength();
+			else if(e.PropertyName == InputView.KeyboardProperty.PropertyName)
+				UpdateInputType();
+			else if(e.PropertyName == InputView.IsSpellCheckEnabledProperty.PropertyName)
+				UpdateInputType();
 		}
 
 		internal override void OnNativeFocusChanged(bool hasFocus)
@@ -123,7 +159,7 @@ namespace Xamarin.Forms.Platform.Android
 			if (_editText == null)
 				return;
 
-			_editText.Gravity = Element.HorizontalTextAlignment.ToHorizontalGravityFlags() | Xamarin.Forms.TextAlignment.Center.ToVerticalGravityFlags();
+			_editText.UpdateHorizontalAlignment(Element.HorizontalTextAlignment, Context.HasRtlSupport(), Xamarin.Forms.TextAlignment.Center.ToVerticalGravityFlags());
 		}
 
 		void UpdateCancelButtonColor()
@@ -154,6 +190,11 @@ namespace Xamarin.Forms.Platform.Android
 			}
 			else
 				control.SetInputType(_inputType);
+
+			if (_editText != null)
+			{
+				_editText.Enabled = model.IsEnabled;
+			}
 		}
 
 		void ClearFocus(SearchView view)
@@ -164,7 +205,7 @@ namespace Xamarin.Forms.Platform.Android
 			}
 			catch (Java.Lang.UnsupportedOperationException)
 			{
-				// silently catch these as they happen in the previewer due to some bugs in upstread android
+				// silently catch these as they happen in the previewer due to some bugs in Android
 			}
 		}
 
@@ -186,32 +227,7 @@ namespace Xamarin.Forms.Platform.Android
 
 		void UpdatePlaceholderColor()
 		{
-			_editText = _editText ?? Control.GetChildrenOfType<EditText>().FirstOrDefault();
-
-			if (_editText == null)
-				return;
-
-			Color placeholderColor = Element.PlaceholderColor;
-
-			if (placeholderColor.IsDefault)
-			{
-				if (_hintTextColorDefault == null)
-				{
-					// This control has always had the default colors; nothing to update
-					return;
-				}
-
-				// This control is being set back to the default colors
-				_editText.SetHintTextColor(_hintTextColorDefault);
-			}
-			else
-			{
-				// Keep track of the default colors so we can return to them later
-				// and so we can preserve the default disabled color
-				_hintTextColorDefault = _hintTextColorDefault ?? _editText.HintTextColors;
-
-				_editText.SetHintTextColor(placeholderColor.ToAndroidPreserveDisabled(_hintTextColorDefault));
-			}
+			_hintColorSwitcher?.UpdateTextColor(_editText, Element.PlaceholderColor, _editText.SetHintTextColor);
 		}
 
 		void UpdateText()
@@ -223,32 +239,67 @@ namespace Xamarin.Forms.Platform.Android
 
 		void UpdateTextColor()
 		{
+			_textColorSwitcher?.UpdateTextColor(_editText, Element.TextColor);
+		}
+
+		void UpdateMaxLength()
+		{
 			_editText = _editText ?? Control.GetChildrenOfType<EditText>().FirstOrDefault();
 
-			if (_editText == null)
-				return;
+			var currentFilters = new List<IInputFilter>(_editText?.GetFilters() ?? new IInputFilter[0]);
 
-			Color textColor = Element.TextColor;
-
-			if (textColor.IsDefault)
+			for (var i = 0; i < currentFilters.Count; i++)
 			{
-				if (_textColorDefault == null)
+				if (currentFilters[i] is InputFilterLengthFilter)
 				{
-					// This control has always had the default colors; nothing to update
-					return;
+					currentFilters.RemoveAt(i);
+					break;
 				}
-
-				// This control is being set back to the default colors
-				_editText.SetTextColor(_textColorDefault);
 			}
-			else
+
+			currentFilters.Add(new InputFilterLengthFilter(Element.MaxLength));
+
+			_editText?.SetFilters(currentFilters.ToArray());
+
+			var currentControlText = Control.Query;
+
+			if (currentControlText.Length > Element.MaxLength)
+				Control.SetQuery(currentControlText.Substring(0, Element.MaxLength), false);
+		}
+
+		void UpdateInputType()
+		{
+			SearchBar model = Element;
+			var keyboard = model.Keyboard;
+
+			_inputType = keyboard.ToInputType();
+			if (!(keyboard is Internals.CustomKeyboard))
 			{
-				// Keep track of the default colors so we can return to them later
-				// and so we can preserve the default disabled color
-				_textColorDefault = _textColorDefault ?? _editText.TextColors;
-
-				_editText.SetTextColor(textColor.ToAndroidPreserveDisabled(_textColorDefault));
+				if (model.IsSet(InputView.IsSpellCheckEnabledProperty))
+				{
+					if ((_inputType & InputTypes.TextFlagNoSuggestions) != InputTypes.TextFlagNoSuggestions)
+					{
+						if (!model.IsSpellCheckEnabled)
+							_inputType = _inputType | InputTypes.TextFlagNoSuggestions;
+					}
+				}
 			}
+			Control.SetInputType(_inputType);
+
+			if (keyboard == Keyboard.Numeric)
+			{
+				_editText = _editText ?? Control.GetChildrenOfType<EditText>().FirstOrDefault();
+				if(_editText != null)
+					_editText.KeyListener = GetDigitsKeyListener(_inputType);
+			}
+		}
+
+		protected virtual NumberKeyListener GetDigitsKeyListener(InputTypes inputTypes)
+		{
+			// Override this in a custom renderer to use a different NumberKeyListener
+			// or to filter out input types you don't want to allow
+			// (e.g., inputTypes &= ~InputTypes.NumberFlagSigned to disallow the sign)
+			return LocalizedDigitsKeyListener.Create(inputTypes);
 		}
 	}
 }

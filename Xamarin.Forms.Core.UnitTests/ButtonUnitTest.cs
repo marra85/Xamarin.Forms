@@ -35,42 +35,57 @@ namespace Xamarin.Forms.Core.UnitTests
 		}
 
 		[Test]
-		public void TestClickedvent ()
+		[TestCase(true)]
+		[TestCase(false)]
+		public void TestClickedvent (bool isEnabled)
 		{
-			var view = new Button ();
+			var view = new Button()
+			{
+				IsEnabled= isEnabled,
+			};
 
 			bool activated = false;
 			view.Clicked += (sender, e) => activated = true;
 
 			((IButtonController) view).SendClicked ();
 
-			Assert.True (activated);
+			Assert.True (activated == isEnabled ? true : false);
 		}
 
 		[Test]
-		public void TestPressedEvent ()
+		[TestCase(true)]
+		[TestCase(false)]
+		public void TestPressedEvent (bool isEnabled)
 		{
-			var view = new Button();
+			var view = new Button()
+			{
+				IsEnabled = isEnabled,
+			};
 
 			bool pressed = false;
 			view.Pressed += (sender, e) => pressed = true;
 
 			((IButtonController)view).SendPressed();
 
-			Assert.True(pressed);
+			Assert.True(pressed == isEnabled ? true : false);
 		}
 
 		[Test]
-		public void TestReleasedEvent ()
+		[TestCase(true)]
+		[TestCase(false)]
+		public void TestReleasedEvent (bool isEnabled)
 		{
-			var view = new Button();
+			var view = new Button()
+			{
+				IsEnabled = isEnabled,
+			};
 
 			bool released = false;
 			view.Released += (sender, e) => released = true;
 
 			((IButtonController)view).SendReleased();
 
-			Assert.True(released);
+			Assert.True(released == isEnabled ? true : false);
 		}
 
 		protected override Button CreateSource()
@@ -134,7 +149,7 @@ namespace Xamarin.Forms.Core.UnitTests
 			[Values (NamedSize.Default, NamedSize.Large, NamedSize.Medium, NamedSize.Small, NamedSize.Micro)] NamedSize size,
 			[Values (FontAttributes.None, FontAttributes.Bold, FontAttributes.Italic, FontAttributes.Bold | FontAttributes.Italic)] FontAttributes attributes)
 		{
-			var button = new Button {Platform = new UnitPlatform ()};
+			var button = new Button();
 			double startSize = button.FontSize;
 			var startAttributes = button.FontAttributes;
 
@@ -158,7 +173,7 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void AssignToFontFamilyUpdatesFont ()
 		{
-			var button = new Button {Platform = new UnitPlatform ()};
+			var button = new Button();
 
 			button.FontFamily = "CrazyFont";
 			Assert.AreEqual (button.Font, Font.OfSize ("CrazyFont", button.FontSize));
@@ -167,7 +182,7 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void AssignToFontSizeUpdatesFont ()
 		{
-			var button = new Button {Platform = new UnitPlatform ()};
+			var button = new Button();
 
 			button.FontSize = 1000;
 			Assert.AreEqual (button.Font, Font.SystemFontOfSize (1000));
@@ -176,7 +191,7 @@ namespace Xamarin.Forms.Core.UnitTests
 		[Test]
 		public void AssignToFontAttributesUpdatesFont ()
 		{
-			var button = new Button {Platform = new UnitPlatform ()};
+			var button = new Button();
 
 			button.FontAttributes = FontAttributes.Italic | FontAttributes.Bold;
 			Assert.AreEqual (button.Font, Font.SystemFontOfSize (button.FontSize, FontAttributes.Bold | FontAttributes.Italic));
@@ -218,6 +233,87 @@ namespace Xamarin.Forms.Core.UnitTests
 			AssertButtonContentLayoutsEqual(new Button.ButtonContentLayout(Button.ButtonContentLayout.ImagePosition.Bottom, 0), converter.ConvertFromInvariantString("Bottom, 0"));
 
 			Assert.Throws<InvalidOperationException>(() => converter.ConvertFromInvariantString(""));
+		}
+
+		[Test]
+		public void ButtonClickWhenCommandCanExecuteFalse()
+		{
+			bool invoked = false;
+			var button = new Button()
+			{
+				Command = new Command(() => invoked = true
+				, () => false),
+			};
+
+			(button as IButtonController)
+				?.SendClicked();
+			
+			Assert.False(invoked);
+		}
+		
+		public void ButtonBorderRadiusForwardsToButtonCornerRadius()
+		{
+			var button = new Button();
+			button.BorderRadius = 10;
+
+			Assert.AreEqual(10, button.CornerRadius);
+		}
+
+		[Test]
+		public void ButtonCornerRadiusForwardsToButtonBorderRadius()
+		{
+			var button = new Button();
+			button.CornerRadius = 10;
+
+			Assert.AreEqual(10, button.BorderRadius);
+		}
+
+		[Test]
+		public void ButtonCornerRadiusClearValueForwardsToButtonBorderRadius()
+		{
+			var button = new Button();
+			
+			button.CornerRadius = 10;
+
+			button.ClearValue(Button.CornerRadiusProperty);
+
+			Assert.AreEqual((int)Button.BorderRadiusProperty.DefaultValue, button.BorderRadius);
+		}
+
+		[Test]
+		public void ButtonBorderRadiusClearValueForwardsToButtonCornerRadius()
+		{
+			var button = new Button();
+
+			button.BorderRadius = 10;
+
+			button.ClearValue(Button.BorderRadiusProperty);
+
+			Assert.AreEqual((int)Button.CornerRadiusProperty.DefaultValue, button.CornerRadius);
+		}
+
+		[Test]
+		public void ButtonCornerRadiusSetToFive()
+		{
+			var button = new Button();
+
+			button.CornerRadius = 25;
+			Assert.AreEqual(25, button.CornerRadius);
+
+			button.CornerRadius = 5;
+			Assert.AreEqual(5, button.CornerRadius);
+		}
+
+		[Test]
+		public void ButtonBorderRadiusSetMinusOne()
+		{
+			var button = new Button();
+
+			button.BorderRadius = 25;
+			Assert.AreEqual(25, button.BorderRadius);
+
+			button.BorderRadius = -1;
+			Assert.AreEqual(-1, button.BorderRadius);
 		}
 
 		private void AssertButtonContentLayoutsEqual(Button.ButtonContentLayout layout1, object layout2)
